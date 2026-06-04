@@ -1,19 +1,17 @@
 /**
- * Dream Log Automation — v1
+ * Dream Log Automation — v2
  *
- * Uses tag-based double-processing prevention.
- * KB queries use bare keywords (naive approach).
- * Scholar web_sources extracted via regex from text body (broken — always empty).
+ * Status-based double-processing prevention (no tags).
+ * KB queries use contextual phrasing ("What does Jung say about X in dreams?")
+ * which dramatically improves book relevance — only Jungian texts surface.
+ * Scholar web_sources still broken (regex extraction from text body).
  */
 
 import { task, schedules, logger } from "@trigger.dev/sdk";
 import {
   getTasksByStatus,
-  addTag,
-  removeTag,
   addComment,
   updateTaskStatus,
-  hasTag,
   type ClickUpTask,
 } from "../lib/clickup";
 import { chat, researchWithBrowsing } from "../lib/ai";
@@ -100,8 +98,11 @@ export const knowledgeBaseSearcher = task({
   run: async (payload: { dream_id: string; key_themes: string[]; symbols: string[]; cleaned_text: string }) => {
     logger.log("Knowledge base searcher starting", { dream_id: payload.dream_id });
 
-    // Naive: bare keyword queries — pulls irrelevant books into results
-    const queries = [...payload.key_themes.slice(0, 2), ...payload.symbols.slice(0, 2)];
+    // Contextual phrasing embeds richer semantic meaning than bare keywords,
+    // naturally surfacing Jungian texts over irrelevant books.
+    const themeQueries = payload.key_themes.slice(0, 2).map((t) => `What does Jung say about ${t} in dreams?`);
+    const symbolQueries = payload.symbols.slice(0, 2).map((s) => `Jungian interpretation and archetypal significance of ${s}`);
+    const queries = [...themeQueries, ...symbolQueries];
 
     const allResults: Awaited<ReturnType<typeof searchBooks>> = [];
     const seenIds = new Set<string>();
@@ -268,7 +269,6 @@ export const dreamLog = task({
 
       await addComment(payload.taskId, comment);
       await updateTaskStatus(payload.taskId, "Done");
-      await removeTag(payload.taskId, "dream-processing-started");
 
       logger.log("Dream log complete", { taskId: payload.taskId, dream_id });
       return { taskId: payload.taskId, dream_id };
@@ -276,8 +276,7 @@ export const dreamLog = task({
       const message = err instanceof Error ? err.message : String(err);
       logger.log("Dream log failed", { taskId: payload.taskId, error: message });
       await updateTaskStatus(payload.taskId, "Error").catch(() => {});
-      await removeTag(payload.taskId, "dream-processing-started").catch(() => {});
-      await addComment(payload.taskId, `## ❌ Dream Log Error\n\n\`\`\`\n${message}\n\`\`\``).catch(() => {});
+      await addComment(payload.taskId, `## ❌ Dream Log Failed\n\n**Error:**\n\`\`\`\n${message}\n\`\`\`\n\n*Check the Trigger.dev dashboard for the full run trace.*`).catch(() => {});
       throw err;
     }
   },
@@ -292,18 +291,18 @@ export const dreamLogPoller = schedules.task({
 
     logger.log("Polling ClickUp Dream Log for Raw tasks…");
     const tasks: ClickUpTask[] = await getTasksByStatus(listId, "Raw");
-    const unprocessed = tasks.filter((t) => !hasTag(t, "dream-processing-started"));
 
-    logger.log(`Found ${unprocessed.length} unprocessed Raw dream(s)`);
+    logger.log(`Found ${tasks.length} Raw dream(s)`);
 
-    for (const t of unprocessed) {
+    for (const t of tasks) {
       const rawText = t.description?.trim() ?? "";
       if (!rawText) { logger.log("Skipping task with empty description", { id: t.id }); continue; }
 
+      // Move to Processing before triggering — next poll won't see it as Raw
+      await updateTaskStatus(t.id, "Processing");
+
       const dreamedOn = new Date(parseInt(t.date_created ?? "0")).toISOString().split("T")[0];
 
-      await addTag(t.id, "dream-processing-started");
-      await updateTaskStatus(t.id, "Processing");
       await dreamLog.trigger({ taskId: t.id, rawText, dreamedOn }, { idempotencyKey: `dream-log-${t.id}` });
       logger.log("Triggered dream log", { id: t.id, dreamedOn });
     }
