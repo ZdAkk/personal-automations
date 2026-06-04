@@ -1,10 +1,10 @@
 /**
- * Dream Log Automation — v2
+ * Dream Log Automation — v3
  *
  * Status-based double-processing prevention (no tags).
- * KB queries use contextual phrasing ("What does Jung say about X in dreams?")
- * which dramatically improves book relevance — only Jungian texts surface.
- * Scholar web_sources still broken (regex extraction from text body).
+ * Contextual KB queries for better book relevance.
+ * Scholar citations now read from Perplexity's dedicated API response field
+ * (response.citations) rather than regex-scanning the text body.
  */
 
 import { task, schedules, logger } from "@trigger.dev/sdk";
@@ -14,7 +14,7 @@ import {
   updateTaskStatus,
   type ClickUpTask,
 } from "../lib/clickup";
-import { chat, researchWithBrowsing } from "../lib/ai";
+import { chat, researchWithBrowsingAndSources } from "../lib/ai";
 import {
   searchBooks,
   ingestDream,
@@ -135,15 +135,10 @@ export const scholarlyResearcher = task({
 
     const combined = [...payload.key_themes, ...payload.symbols].join(", ");
     const query = `Jungian psychological analysis of: ${combined} — scholarly sources, archetypes, and depth psychology`;
-    const raw = await researchWithBrowsing(query);
+    const { content, citations } = await researchWithBrowsingAndSources(query);
 
-    // BUG: Perplexity returns citations in a separate API field, not in the text body.
-    // This regex always returns empty — web_sources will always be [].
-    const urlPattern = /https?:\/\/[^\s)>"\]]+/g;
-    const web_sources = [...new Set(raw.match(urlPattern) ?? [])].slice(0, 10);
-
-    logger.log("Scholarly researcher complete");
-    return { scholarly_context: raw, web_sources };
+    logger.log("Scholarly researcher complete", { citationsFound: citations.length });
+    return { scholarly_context: content, web_sources: citations };
   },
 });
 

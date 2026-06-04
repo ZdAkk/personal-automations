@@ -60,10 +60,23 @@ export async function chat(
  * built-in internet access — no separate search API key needed.
  */
 export async function researchWithBrowsing(query: string): Promise<string> {
+  const { content } = await researchWithBrowsingAndSources(query);
+  return content;
+}
+
+/**
+ * Same as researchWithBrowsing, but also returns the citations array.
+ * Perplexity Sonar returns sources in a top-level `citations` field on the
+ * response object — not embedded in the message text — so a regex scan of
+ * the content body always comes up empty. This function reads that field
+ * directly from the raw response.
+ */
+export async function researchWithBrowsingAndSources(
+  query: string
+): Promise<{ content: string; citations: string[] }> {
   const client = getClient();
   const response = await client.chat.completions.create({
-    model:
-      process.env.OPENROUTER_RESEARCH_MODEL ?? "perplexity/sonar",
+    model: process.env.OPENROUTER_RESEARCH_MODEL ?? "perplexity/sonar",
     messages: [
       {
         role: "system",
@@ -78,5 +91,13 @@ export async function researchWithBrowsing(query: string): Promise<string> {
       },
     ],
   });
-  return response.choices[0]?.message?.content ?? "";
+
+  const content = response.choices[0]?.message?.content ?? "";
+
+  // Perplexity returns citations at the top level of the response object,
+  // outside the standard OpenAI schema. Cast to any to access it.
+  const citations: string[] =
+    (response as any).citations ?? [];
+
+  return { content, citations };
 }
