@@ -31,15 +31,31 @@ export interface ClickUpStatus {
   type: string;
 }
 
+export interface ClickUpCustomField {
+  id: string;
+  name: string;
+  type: string;
+  value?: string | null;
+}
+
 export interface ClickUpTask {
   id: string;
   name: string;
   description?: string;
   status: ClickUpStatus;
   tags: ClickUpTag[];
+  custom_fields?: ClickUpCustomField[];
   date_done?: string | null;
   date_created?: string;
   date_updated?: string;
+}
+
+/** Extract a custom field value by name (case-insensitive). Returns null if not found or empty. */
+export function getCustomField(task: ClickUpTask, fieldName: string): string | null {
+  const field = task.custom_fields?.find(
+    (f) => f.name.toLowerCase() === fieldName.toLowerCase()
+  );
+  return field?.value?.trim() || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +83,7 @@ export async function getTasksByStatus(
   listId: string,
   status: string
 ): Promise<ClickUpTask[]> {
-  const url = `${BASE_URL}/list/${listId}/task?statuses[]=${encodeURIComponent(status)}&include_closed=false`;
+  const url = `${BASE_URL}/list/${listId}/task?statuses[]=${encodeURIComponent(status)}&include_closed=false&custom_fields=true`;
   const res = await fetch(url, { headers: headers() });
   await throwIfNotOk(res, `getTasksByStatus(${status})`);
   const data = (await res.json()) as { tasks?: ClickUpTask[] };

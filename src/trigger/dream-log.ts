@@ -10,6 +10,7 @@
 import { task, schedules, logger } from "@trigger.dev/sdk";
 import {
   getTasksByStatus,
+  getCustomField,
   addComment,
   updateTaskStatus,
   type ClickUpTask,
@@ -26,10 +27,14 @@ import {
 export const dreamCleaner = task({
   id: "dream-cleaner",
   retry: { maxAttempts: 3 },
-  run: async (payload: { taskId: string; rawText: string; dreamedOn: string }) => {
-    logger.log("Dream cleaner starting", { taskId: payload.taskId });
+  run: async (payload: { taskId: string; rawText: string; dreamedOn: string; dayResidue: string | null }) => {
+    logger.log("Dream cleaner starting", { taskId: payload.taskId, hasDayResidue: !!payload.dayResidue });
 
     const model = process.env.DREAM_CLEANER_MODEL ?? "deepseek/deepseek-r1";
+
+    const dayResidueSection = payload.dayResidue
+      ? `\n\nContext from the previous day (day residue — events that may have seeded the dream):\n${payload.dayResidue}`
+      : "";
 
     const raw = await chat(
       [
@@ -38,6 +43,8 @@ export const dreamCleaner = task({
           content:
             "You are a Jungian-aware analyst who helps people process their dreams. " +
             "Your task is to clean and structure a raw dream report. " +
+            "If day residue context is provided, use it to better identify themes and symbols — " +
+            "day residue often directly seeds dream imagery. " +
             "You MUST return ONLY a valid JSON object — no markdown, no explanation, no preamble. " +
             "The JSON must conform exactly to the schema described by the user.",
         },
@@ -54,7 +61,7 @@ export const dreamCleaner = task({
 }
 
 Raw dream text:
-${payload.rawText}`,
+${payload.rawText}${dayResidueSection}`,
         },
       ],
       model
@@ -153,10 +160,15 @@ export const dreamSynthesizer = task({
     symbols: string[];
     books_used: string[];
     web_sources: string[];
+    dayResidue: string | null;
   }) => {
     logger.log("Dream synthesizer starting", { dream_id: payload.dream_id });
 
     const model = process.env.DREAM_SYNTHESIZER_MODEL ?? "deepseek/deepseek-r1";
+
+    const dayResidueSection = payload.dayResidue
+      ? `\n---\nDay Residue (previous day's events provided by the dreamer — use this to ground the waking_life field):\n${payload.dayResidue}`
+      : "";
 
     const raw = await chat(
       [
@@ -165,6 +177,8 @@ export const dreamSynthesizer = task({
           content:
             "You are an experienced Jungian analyst with deep knowledge of analytical psychology. " +
             "You have access to both classical Jungian texts and current scholarship. " +
+            "If day residue is provided, use it to sharpen the waking_life connection — " +
+            "day residue is the raw material the psyche transforms into dream imagery. " +
             "You MUST return ONLY a valid JSON object — no markdown, no explanation, no preamble. " +
             "The JSON must conform exactly to the schema described by the user.",
         },
@@ -174,7 +188,7 @@ export const dreamSynthesizer = task({
 {
   "central_theme": "one sentence capturing the core psychological theme",
   "jungian_analysis": "full multi-paragraph analysis referencing the KB passages and scholarly sources",
-  "waking_life": "connection to current life circumstances inferred from dream content",
+  "waking_life": "connection to current life circumstances inferred from dream content and day residue if provided",
   "message": "the psyche's core message in 2-3 sentences",
   "symbols": [
     {
@@ -196,7 +210,7 @@ ${payload.kb_context}
 
 ---
 Scholarly Research:
-${payload.scholarly_context}
+${payload.scholarly_context}${dayResidueSection}
 
 Symbols to analyse: ${payload.symbols.join(", ")}`,
         },
@@ -234,11 +248,11 @@ Symbols to analyse: ${payload.symbols.join(", ")}`,
 export const dreamLog = task({
   id: "dream-log",
   retry: { maxAttempts: 1 },
-  run: async (payload: { taskId: string; rawText: string; dreamedOn: string }) => {
-    logger.log("Dream log starting", { taskId: payload.taskId, dreamedOn: payload.dreamedOn });
+  run: async (payload: { taskId: string; rawText: string; dreamedOn: string; dayResidue: string | null }) => {
+    logger.log("Dream log starting", { taskId: payload.taskId, dreamedOn: payload.dreamedOn, hasDayResidue: !!payload.dayResidue });
 
     try {
-      const cleanerResult = await dreamCleaner.triggerAndWait({ taskId: payload.taskId, rawText: payload.rawText, dreamedOn: payload.dreamedOn });
+      const cleanerResult = await dreamCleaner.triggerAndWait({ taskId: payload.taskId, rawText: payload.rawText, dreamedOn: payload.dreamedOn, dayResidue: payload.dayResidue });
       if (!cleanerResult.ok) throw new Error(`dreamCleaner failed: ${cleanerResult.error}`);
       const { dream_id, key_themes, symbols, cleaned_text } = cleanerResult.output;
 
@@ -250,7 +264,7 @@ export const dreamLog = task({
       if (!scholarResult.ok) throw new Error(`scholarlyResearcher failed: ${scholarResult.error}`);
       const { scholarly_context, web_sources } = scholarResult.output;
 
-      const synthResult = await dreamSynthesizer.triggerAndWait({ dream_id, cleaned_text, kb_context, scholarly_context, symbols, books_used, web_sources });
+      const synthResult = await dreamSynthesizer.triggerAndWait({ dream_id, cleaned_text, kb_context, scholarly_context, symbols, books_used, web_sources, dayResidue: payload.dayResidue });
       if (!synthResult.ok) throw new Error(`dreamSynthesizer failed: ${synthResult.error}`);
       const { interpretation } = synthResult.output;
 
@@ -298,7 +312,13 @@ export const dreamLogPoller = schedules.task({
 
       const dreamedOn = new Date(parseInt(t.date_created ?? "0")).toISOString().split("T")[0];
 
-      await dreamLog.trigger({ taskId: t.id, rawText, dreamedOn }, { idempotencyKey: `dream-log-${t.id}` });
+      // Optional: read day residue from the "Day Residue" custom field
+      const dayResidue = getCustomField(t, "Day Residue");
+      if (dayResidue) {
+        logger.log("Day residue found — will use as context", { id: t.id });
+      }
+
+      await dreamLog.trigger({ taskId: t.id, rawText, dreamedOn, dayResidue }, { idempotencyKey: `dream-log-${t.id}` });
       logger.log("Triggered dream log", { id: t.id, dreamedOn });
     }
   },
