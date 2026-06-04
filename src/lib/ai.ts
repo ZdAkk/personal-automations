@@ -94,10 +94,13 @@ export async function researchWithBrowsingAndSources(
 
   const content = response.choices[0]?.message?.content ?? "";
 
-  // Perplexity returns citations at the top level of the response object,
-  // outside the standard OpenAI schema. Cast to any to access it.
-  const citations: string[] =
-    (response as any).citations ?? [];
+  // OpenRouter returns Perplexity citations as annotations on the message,
+  // not in a top-level citations field. Each annotation has type "url_citation"
+  // with a nested url_citation.url field.
+  const annotations: any[] = (response.choices[0]?.message as any)?.annotations ?? [];
+  const citations: string[] = annotations
+    .filter((a) => a?.type === "url_citation" && a?.url_citation?.url)
+    .map((a) => a.url_citation.url as string);
 
   return { content, citations };
 }

@@ -1,0 +1,24 @@
+{
+    "version": "v4",
+    "notes": "Citations fully working. OpenRouter returns Perplexity citations as message.annotations[].url_citation.url — not in a top-level citations field. Fixed by reading from annotations array. web_sources now populated with 10 URLs. Books: man-and-his-symbols + memories-dreams-reflections. No hallucinated page numbers. Analysis references specific passages accurately (Henry's dream, mountain ascent from Man and His Symbols). scholar_sources still null by design.",
+    "result": {
+        "dream_id": "1e5347c0-fcb5-46e9-af57-3ae00c67a9c6",
+        "dreamed_on": "2026-06-04",
+        "title": "Journey of Conflict and Reunion in a New City",
+        "books_used": ["man-and-his-symbols", "memories-dreams-reflections"],
+        "web_sources": [
+            "https://meridianuniversity.edu/content/jungian-therapy-rewriting-your-lifes-script-for-the-better",
+            "https://en.wikipedia.org/wiki/Analytical_psychology",
+            "https://www.thesap.org.uk/articles-on-jungian-psychology-2/about-analysis-and-therapy/individuation/",
+            "https://www.youtube.com/watch?v=jgLL2WfVO7Q",
+            "https://www.youtube.com/watch?v=LZNFCOSAvYc",
+            "https://www.youtube.com/watch?v=hBuGeY3TpyQ",
+            "https://mindfulcenter.org/jungian/",
+            "https://www.jungarchademy.com/journey",
+            "https://www.reddit.com/r/Jung/comments/1nbuizy/jungian_trip_analysis/",
+            "https://search.proquest.com/openview/eb4bdaeffa29f503db8bec140ce4986d/1?pq-origsite=gscholar&cbl=18750&diss=y"
+        ],
+        "model_used": "deepseek/deepseek-v4-flash",
+        "generated_at": "2026-06-04T17:07:03.494446Z"
+    }
+}
