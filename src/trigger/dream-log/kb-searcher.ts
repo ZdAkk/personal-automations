@@ -83,7 +83,7 @@ export const knowledgeBaseSearcher = task({
     const seenIds = new Set<string>();
 
     for (const [term, passage] of Object.entries(hydeMap)) {
-      const results = await searchBooks(passage, 5, 0.25);
+      const results = await searchBooks(passage, 5, 0.30);
       logger.log(`KB search for "${term}"`, { hits: results.length });
       for (const r of results) {
         if (!seenIds.has(r.chunk_id)) {
