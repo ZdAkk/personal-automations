@@ -45,6 +45,7 @@ export interface DreamIngestPayload {
   lucid: boolean;
   recurring: boolean;
   notes?: string | null;
+  day_residue?: string | null; // optional waking-life context from the previous day
 }
 
 export interface DreamSymbol {

@@ -92,6 +92,7 @@ ${payload.rawText}${dayResidueSection}`,
       lucid: parsed.lucid,
       recurring: false,
       notes: null,
+      day_residue: payload.dayResidue,
     });
 
     logger.log("Dream cleaner complete", { dream_id });
@@ -313,7 +314,7 @@ export const dreamLogPoller = schedules.task({
       const dreamedOn = new Date(parseInt(t.date_created ?? "0")).toISOString().split("T")[0];
 
       // Optional: read day residue from the "Day Residue" custom field
-      const dayResidue = getCustomField(t, "Day Residue");
+      const dayResidue = getCustomField(t, "dayResidue");
       if (dayResidue) {
         logger.log("Day residue found — will use as context", { id: t.id });
       }

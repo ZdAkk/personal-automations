@@ -83,7 +83,7 @@ export async function getTasksByStatus(
   listId: string,
   status: string
 ): Promise<ClickUpTask[]> {
-  const url = `${BASE_URL}/list/${listId}/task?statuses[]=${encodeURIComponent(status)}&include_closed=false&custom_fields=true`;
+  const url = `${BASE_URL}/list/${listId}/task?statuses[]=${encodeURIComponent(status)}&include_closed=false`;
   const res = await fetch(url, { headers: headers() });
   await throwIfNotOk(res, `getTasksByStatus(${status})`);
   const data = (await res.json()) as { tasks?: ClickUpTask[] };

@@ -1,0 +1,13 @@
+{
+    "version": "v3",
+    "notes": "Citations fix deployed. web_sources still empty — likely because OpenRouter acts as a proxy and strips Perplexity's top-level citations field before returning the response. Books improved: now surfaces man-and-his-symbols AND memories-dreams-reflections. No hallucinated page numbers (present in v2). Analysis quotes actual KB passages. 12 symbols vs v2's 8.",
+    "result": {
+        "dream_id": "0f7e975a-ffa3-4dea-b6c8-a37b626c87b2",
+        "dreamed_on": "2026-06-04",
+        "title": "Spontaneous Journey with Fighting and Baby",
+        "books_used": ["man-and-his-symbols", "memories-dreams-reflections"],
+        "web_sources": [],
+        "model_used": "deepseek/deepseek-v4-flash",
+        "generated_at": "2026-06-04T15:51:53.006173Z"
+    }
+}
