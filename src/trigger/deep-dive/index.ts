@@ -30,8 +30,8 @@ import {
   updateTaskStatus,
   hasTag,
   type ClickUpTask,
-} from "../lib/clickup";
-import { researchWithBrowsing, chat } from "../lib/ai";
+} from "../../lib/clickup";
+import { researchWithBrowsing, chat } from "../../lib/ai";
 
 // ---------------------------------------------------------------------------
 // Child tasks

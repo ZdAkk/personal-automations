@@ -37,7 +37,7 @@ import {
   updateTaskStatus,
   hasTag,
   type ClickUpTask,
-} from "../lib/clickup";
+} from "../../lib/clickup";
 
 const INITIAL_WAIT_HOURS = 48;
 const NUDGE_WAIT_HOURS = 24;

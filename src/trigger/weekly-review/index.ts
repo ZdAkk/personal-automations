@@ -21,8 +21,8 @@ import {
   getCompletedTasksSince,
   getTasksByStatus,
   createTask,
-} from "../lib/clickup";
-import { chat } from "../lib/ai";
+} from "../../lib/clickup";
+import { chat } from "../../lib/ai";
 
 export const weeklyReview = schedules.task({
   id: "weekly-review",
