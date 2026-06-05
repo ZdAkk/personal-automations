@@ -40,8 +40,8 @@ export const dreamSynthesizer = task({
     const model = process.env.DREAM_SYNTHESIZER_MODEL ?? "deepseek/deepseek-r1";
 
     const dayResidueSection = payload.day_residue
-      ? `\n---\nDay Residue (what the dreamer experienced in the day or two before this dream):\n${payload.day_residue}`
-      : "\n---\nDay Residue: not provided.";
+      ? `\n---\nDay Residue (what the dreamer experienced in the day or two before this dream — treat this as the primary personal context for grounding symbol interpretation before widening to archetype):\n${payload.day_residue}`
+      : `\n---\nDay Residue: not provided. Without it, ground your interpretation in the dream's own internal logic — the sequence of events, the emotional charge of each scene, and what the dreamer's ego position appears to be within the dream narrative itself.`;
 
     const raw = await chat(
       [
