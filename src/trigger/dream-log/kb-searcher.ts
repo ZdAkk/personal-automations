@@ -35,7 +35,7 @@ export const knowledgeBaseSearcher = task({
     });
 
     // ── Step 1: HyDE — generate hypothetical Jungian passages
-    const hydeModel = process.env.DREAM_CLEANER_MODEL ?? "deepseek/deepseek-v4-flash";
+    const hydeModel = process.env.DREAM_HYDE_MODEL ?? "deepseek/deepseek-v4-flash";
 
     const allTerms = [
       ...payload.key_themes,          // all themes
