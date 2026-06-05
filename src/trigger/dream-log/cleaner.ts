@@ -24,9 +24,8 @@ export const dreamCleaner = task({
     dreamedOn: string;
     dayResidueHint: string | null; // from ClickUp custom field — used as a seed for the AI
   }) => {
-    logger.log("Dream cleaner starting", { taskId: payload.taskId });
-
     const model = process.env.DREAM_CLEANER_MODEL ?? "deepseek/deepseek-r1";
+    logger.log("Dream cleaner starting", { taskId: payload.taskId, model });
 
     const dayResidueHintSection = payload.dayResidueHint
       ? `\n\nThe dreamer has provided this day residue hint (use it to guide your extraction of the day_residue field):\n${payload.dayResidueHint}`

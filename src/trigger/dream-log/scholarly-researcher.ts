@@ -16,7 +16,9 @@ export const scholarlyResearcher = task({
   id: "scholarly-researcher",
   retry: { maxAttempts: 3 },
   run: async (payload: { key_themes: string[]; symbols: string[] }) => {
+    const researchModel = process.env.DREAM_RESEARCHER_MODEL ?? "perplexity/sonar";
     logger.log("Scholarly researcher starting", {
+      model: researchModel,
       themes: payload.key_themes,
       symbols: payload.symbols,
     });

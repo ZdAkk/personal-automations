@@ -28,14 +28,13 @@ export const knowledgeBaseSearcher = task({
     symbols: string[];
     cleaned_text: string;
   }) => {
+    const hydeModel = process.env.DREAM_HYDE_MODEL ?? "deepseek/deepseek-v4-flash";
     logger.log("Knowledge base searcher starting", {
       dream_id: payload.dream_id,
+      hyde_model: hydeModel,
       themes: payload.key_themes,
       symbols: payload.symbols,
     });
-
-    // ── Step 1: HyDE — generate hypothetical Jungian passages
-    const hydeModel = process.env.DREAM_HYDE_MODEL ?? "deepseek/deepseek-v4-flash";
 
     const allTerms = [
       ...payload.key_themes,          // all themes

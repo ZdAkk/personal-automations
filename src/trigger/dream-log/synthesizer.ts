@@ -35,9 +35,8 @@ export const dreamSynthesizer = task({
     books_used: string[];
     web_sources: string[];
   }) => {
-    logger.log("Dream synthesizer starting", { dream_id: payload.dream_id });
-
     const model = process.env.DREAM_SYNTHESIZER_MODEL ?? "deepseek/deepseek-r1";
+    logger.log("Dream synthesizer starting", { dream_id: payload.dream_id, model });
 
     const dayResidueSection = payload.day_residue
       ? `\n---\nDay Residue (what the dreamer experienced in the day or two before this dream — treat this as the primary personal context for grounding symbol interpretation before widening to archetype):\n${payload.day_residue}`
