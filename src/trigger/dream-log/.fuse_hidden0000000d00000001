@@ -4,7 +4,7 @@
  * Orchestrates the full dream interpretation pipeline:
  *
  *   dreamLogPoller (every 2 min)
- *     → picks up pending entries from the active note provider
+ *     → picks up pending entries from the active note provider (ClickUp or Notion)
  *     → moves to "Processing", triggers dreamLog parent
  *
  *   dreamLog (parent)
@@ -15,14 +15,13 @@
  *     → posts summary comment via provider, moves entry to "Done"
  *     → on error: moves to "Error", posts error comment
  *
- * Active provider: NOTE_PROVIDER env var (clickup | notion), default clickup.
- * Source collection: "dreams" (resolved internally by getNoteProvider).
+ * Active provider is selected via DREAM_PROVIDER env var (clickup | notion).
  * All child tasks are defined in sibling files and imported here.
  * triggerAndWait calls are always sequential — never wrapped in Promise.all.
  */
 
 import { task, schedules, logger } from "@trigger.dev/sdk";
-import { getNoteProvider, NoteCollection } from "../../lib/providers/note-provider";
+import { getDreamNoteProvider } from "../../lib/dream-provider";
 
 import { dreamCleaner } from "./cleaner";
 import { knowledgeBaseSearcher } from "./kb-searcher";
@@ -43,12 +42,14 @@ export const dreamLog = task({
     entryId: string;
     rawText: string;
     dreamedOn: string;
+    dayResidueHint: string | null;
   }) => {
-    const provider = getNoteProvider(NoteCollection.Dreams);
+    const provider = getDreamNoteProvider();
 
     logger.log("Dream log starting", {
       entryId: payload.entryId,
       dreamedOn: payload.dreamedOn,
+      hasDayResidueHint: !!payload.dayResidueHint,
     });
 
     try {
@@ -57,6 +58,7 @@ export const dreamLog = task({
         taskId: payload.entryId,
         rawText: payload.rawText,
         dreamedOn: payload.dreamedOn,
+        dayResidueHint: payload.dayResidueHint,
       });
       if (!cleanerResult.ok) throw new Error(`dreamCleaner failed: ${cleanerResult.error}`);
       const { dream_id, key_themes, symbols, cleaned_text, day_residue } = cleanerResult.output;
@@ -100,14 +102,14 @@ export const dreamLog = task({
         `*Interpreted using Jungian analytical psychology · ${model}*`;
 
       await provider.addComment(payload.entryId, comment);
-      await provider.updateStatus(payload.entryId, "Done");
+      await provider.markDone(payload.entryId);
 
       logger.log("Dream log complete", { entryId: payload.entryId, dream_id });
       return { entryId: payload.entryId, dream_id };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.log("Dream log failed", { entryId: payload.entryId, error: message });
-      await provider.updateStatus(payload.entryId, "Error").catch(() => {});
+      await provider.markError(payload.entryId).catch(() => {});
       await provider
         .addComment(
           payload.entryId,
@@ -127,30 +129,37 @@ export const dreamLogPoller = schedules.task({
   id: "dream-log-poller",
   cron: "*/2 * * * *",
   run: async () => {
-    const provider = getNoteProvider(NoteCollection.Dreams);
+    const provider = getDreamNoteProvider();
+    const providerName = process.env.DREAM_PROVIDER ?? "clickup";
 
-    logger.log("Polling for pending dream entries…");
-    const entries = await provider.listByStatus("Raw");
+    logger.log(`Polling ${providerName} for pending dream entries…`);
+    const entries = await provider.listPending();
     logger.log(`Found ${entries.length} pending dream(s)`);
 
     for (const entry of entries) {
-      if (!entry.content) {
+      if (!entry.rawText) {
         logger.log("Skipping entry with empty content", { id: entry.id });
         continue;
       }
 
-      await provider.updateStatus(entry.id, "Processing");
+      // Move to Processing before triggering — next poll won't see it as Raw
+      await provider.markProcessing(entry.id);
+
+      if (entry.dayResidueHint) {
+        logger.log("Day residue hint found", { id: entry.id });
+      }
 
       await dreamLog.trigger(
         {
           entryId: entry.id,
-          rawText: entry.content,
-          dreamedOn: entry.createdAt,
+          rawText: entry.rawText,
+          dreamedOn: entry.dreamedOn,
+          dayResidueHint: entry.dayResidueHint,
         },
         { idempotencyKey: `dream-log-${entry.id}` }
       );
 
-      logger.log("Triggered dream log", { id: entry.id, dreamedOn: entry.createdAt });
+      logger.log("Triggered dream log", { id: entry.id, dreamedOn: entry.dreamedOn });
     }
   },
 });

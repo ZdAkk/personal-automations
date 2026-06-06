@@ -71,4 +71,6 @@ export function getNoteProvider(collection: NoteCollection): NoteProviderType {
   switch (providerName) {
     case "clickup": return new ClickUpProvider(sourceId);
     case "notion":  return new NotionProvider(sourceId);
-    default: throw new Error(`Unknown NOTE_PROVIDER "${providerName}". Valid values: click
+    default: throw new Error(`Unknown NOTE_PROVIDER "${providerName}". Valid values: clickup, notion`);
+  }
+}

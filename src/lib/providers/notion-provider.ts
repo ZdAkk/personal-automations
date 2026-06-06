@@ -303,4 +303,8 @@ export class NotionProvider extends NoteProvider {
       .filter((b) => TEXT_BLOCK_TYPES.includes(b.type))
       .map((b) => {
         const inner = (b[b.type] as { rich_text?: { plain_text: string }[] } | undefined);
-        return inner?.rich_text ? plainText(inne
+        return inner?.rich_text ? plainText(inner.rich_text) : "";
+      })
+      .join("\n");
+  }
+}

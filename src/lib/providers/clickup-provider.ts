@@ -153,4 +153,7 @@ export class ClickUpProvider extends NoteProvider {
       }),
     });
     await throwIfNotOk(res, "createItem");
-    const t = (await res.json()) a
+    const t = (await res.json()) as RawTask;
+    return toNoteItem(t);
+  }
+}

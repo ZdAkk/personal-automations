@@ -128,4 +128,21 @@ Symbols to address: ${payload.symbols.join(", ")}`,
         .join("\n\n");
     }
 
-    const inte
+    const interpretationPayload: InterpretationPayload = {
+      central_theme: parsed.central_theme,
+      jungian_analysis: parsed.jungian_analysis,
+      waking_life: parsed.waking_life,
+      message: parsed.message,
+      symbols: parsed.symbols,
+      books_used: payload.books_used,
+      web_sources: payload.web_sources,
+      scholar_sources: null,
+      model_used: model,
+    };
+
+    await addInterpretation(payload.dream_id, interpretationPayload);
+    logger.log("Dream synthesizer complete", { dream_id: payload.dream_id });
+
+    return { interpretation: interpretationPayload };
+  },
+});

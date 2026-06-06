@@ -96,4 +96,8 @@ ${payload.rawText}`,
       dream_id,
       key_themes: parsed.key_themes,
       symbols: parsed.symbols,
-      cleaned_text: parsed.clea
+      cleaned_text: parsed.cleaned_text,
+      day_residue: parsed.day_residue,
+    };
+  },
+});
