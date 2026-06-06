@@ -1,10 +1,13 @@
 /**
  * Dream Cleaner
  *
- * Receives raw dream text, uses an AI model to:
+ * Receives raw dream text and uses an AI model to:
  *  - Write a polished cleaned narrative
  *  - Extract structured metadata (title, emotional tone, lucid flag)
- *  - Extract day_residue from the raw text (or refine the ClickUp hint)
+ *  - Extract day_residue directly from the raw text — no hint required.
+ *    The dreamer writes everything in one message; the model identifies
+ *    any waking-life context (events, worries, encounters, media) embedded
+ *    in the narrative and lifts it out as day_residue.
  *  - Identify key Jungian themes and symbols for downstream tasks
  *
  * Then ingests the dream record into the knowledge base API.
@@ -22,14 +25,9 @@ export const dreamCleaner = task({
     taskId: string;
     rawText: string;
     dreamedOn: string;
-    dayResidueHint: string | null; // from ClickUp custom field — used as a seed for the AI
   }) => {
-    const model = process.env.DREAM_CLEANER_MODEL ?? "deepseek/deepseek-r1";
+    const model = process.env.DREAM_CLEANER_MODEL ?? "deepseek/deepseek-v3.2";
     logger.log("Dream cleaner starting", { taskId: payload.taskId, model });
-
-    const dayResidueHintSection = payload.dayResidueHint
-      ? `\n\nThe dreamer has provided this day residue hint (use it to guide your extraction of the day_residue field):\n${payload.dayResidueHint}`
-      : "";
 
     const raw = await chat(
       [
@@ -49,13 +47,13 @@ export const dreamCleaner = task({
   "cleaned_text": "polished, fluent narrative of the dream preserving all details",
   "emotional_tone": ["array", "of", "emotion", "strings"],
   "lucid": false,
-  "day_residue": "what the dreamer experienced, encountered, or was preoccupied with in the day or two before the dream — extracted from the raw text if mentioned, otherwise null",
+  "day_residue": "carefully read the raw text for any waking-life material the dreamer mentions — events, conversations, worries, people encountered, media consumed, or anything experienced in the day or two before the dream, even if woven into the narrative rather than stated explicitly. Extract this as a concise summary string. Do NOT label or annotate it — write it as plain observed fact. If no waking-life context can be identified at all, use null.",
   "key_themes": ["array of 3-6 thematic strings for Jungian analysis"],
   "symbols": ["array of significant symbols or figures as short strings"]
 }
 
 Raw dream text:
-${payload.rawText}${dayResidueHintSection}`,
+${payload.rawText}`,
         },
       ],
       model
@@ -98,8 +96,4 @@ ${payload.rawText}${dayResidueHintSection}`,
       dream_id,
       key_themes: parsed.key_themes,
       symbols: parsed.symbols,
-      cleaned_text: parsed.cleaned_text,
-      day_residue: parsed.day_residue,
-    };
-  },
-});
+      cleaned_text: parsed.clea

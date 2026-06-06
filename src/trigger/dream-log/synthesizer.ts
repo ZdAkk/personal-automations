@@ -71,7 +71,7 @@ Return only valid JSON. No markdown. No preamble. No explanation outside the JSO
           content: `Analyse this dream and return a single JSON object with exactly these fields:
 {
   "central_theme": "one sentence naming the core psychological drama of this dream",
-  "jungian_analysis": "your full interpretation — structured as a drama (setting → development → climax → resolution), addressing each major symbol in order of appearance, grounding each first in the day residue and personal context before widening to archetypal meaning, referencing the library passages where relevant",
+  "jungian_analysis": "your full interpretation as a single continuous prose string — narrate it as a drama moving through setting, development, climax, and resolution, addressing each major symbol in order of appearance. Where day residue is present, weave it naturally into the interpretation without labelling it — do not write phrases like '(day residue)' or 'day residue:'. Reference the library passages where relevant. This MUST be a flat string, not a nested object.",
   "waking_life": "how this dream speaks to the dreamer's current life situation — what the unconscious is compensating for, what it is trying to bring forward",
   "message": "the psyche's core statement in 2-3 sentences — not advice, but what the unconscious is doing",
   "symbols": [
@@ -79,7 +79,7 @@ Return only valid JSON. No markdown. No preamble. No explanation outside the JSO
       "name": "symbol or figure name",
       "archetype": "Jungian archetype",
       "description": "what it was in the dream",
-      "significance": "what it means psychologically, grounded first in day residue then archetype",
+      "significance": "what it means psychologically — integrate any waking-life context naturally without labelling it, then widen to archetypal meaning",
       "jungian_concept": "specific Jungian concept"
     }
   ]
@@ -120,21 +120,12 @@ Symbols to address: ${payload.symbols.join(", ")}`,
       );
     }
 
-    const interpretationPayload: InterpretationPayload = {
-      central_theme: parsed.central_theme,
-      jungian_analysis: parsed.jungian_analysis,
-      waking_life: parsed.waking_life,
-      message: parsed.message,
-      symbols: parsed.symbols,
-      books_used: payload.books_used,
-      web_sources: payload.web_sources,
-      scholar_sources: null,
-      model_used: model,
-    };
+    // Safety net: if the model returned jungian_analysis as a nested object
+    // despite instructions, flatten it to a prose string.
+    if (typeof parsed.jungian_analysis !== "string") {
+      parsed.jungian_analysis = Object.entries(parsed.jungian_analysis as Record<string, string>)
+        .map(([section, text]) => `**${section}**\n\n${text}`)
+        .join("\n\n");
+    }
 
-    await addInterpretation(payload.dream_id, interpretationPayload);
-    logger.log("Dream synthesizer complete", { dream_id: payload.dream_id });
-
-    return { interpretation: interpretationPayload };
-  },
-});
+    const inte
