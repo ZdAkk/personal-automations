@@ -1,5 +1,5 @@
 import { task, schedules, logger } from "@trigger.dev/sdk";
-import { searchListings, parsePrice, type KleinanzeigenListing } from "../../lib/kleinanzeigen";
+import { searchListings, listingMatches, parsePrice, type KleinanzeigenListing } from "../../lib/kleinanzeigen";
 import { GPU_SEARCHES, type SearchTarget } from "../../config/kleinanzeigen-searches";
 
 // ---------------------------------------------------------------------------
@@ -45,8 +45,13 @@ export const kleinanzeigenSearch = task({
       min_publish_date,
     });
 
-    // Client-side price guard: include VB/negotiable (null price) and confirmed-under-ceiling prices.
+    // Two-stage filter:
+    //   1. keyword match — drop noise the broad query pulled in (coolers, boxes, laptops)
+    //   2. price guard — keep VB/negotiable (null price) and confirmed-under-ceiling
     const matches: MatchedListing[] = listings
+      .filter((listing: KleinanzeigenListing) =>
+        listingMatches(listing, { requireAll: target.requireAll, excludeAny: target.excludeAny })
+      )
       .map((listing: KleinanzeigenListing) => {
         const price_eur = parsePrice(listing.price);
         return { listing, price_eur };

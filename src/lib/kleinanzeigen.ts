@@ -57,6 +57,21 @@ export async function getListingDetail(id: string): Promise<Record<string, unkno
   return data.results ?? {};
 }
 
+// Keyword filter against a listing's title + description. Matching is done on a
+// whitespace-stripped, lowercased haystack so capacity tokens like "24gb" match
+// "24 GB"/"24gb"/"24GB" and "3090ti" matches "3090 Ti"/"3090Ti".
+export function listingMatches(
+  listing: KleinanzeigenListing,
+  opts: { requireAll?: string[]; excludeAny?: string[] }
+): boolean {
+  const hay = `${listing.title} ${listing.description ?? ""}`.toLowerCase().replace(/\s+/g, "");
+  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, "");
+
+  if (opts.excludeAny?.some((t) => hay.includes(norm(t)))) return false;
+  if (opts.requireAll && !opts.requireAll.every((t) => hay.includes(norm(t)))) return false;
+  return true;
+}
+
 // Parse a Kleinanzeigen price string like "850 €" or "1.200 €" into a number.
 // Returns null for non-numeric entries ("VB", "Zu verschenken", etc).
 export function parsePrice(raw: string | null): number | null {
