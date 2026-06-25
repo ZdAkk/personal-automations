@@ -48,6 +48,68 @@ export async function searchListings(params: SearchParams): Promise<Kleinanzeige
   return data.results ?? [];
 }
 
+export interface SearchByUrlParams {
+  url: string;
+  max_pages?: number;
+  min_publish_date?: string;
+}
+
+// Scrape a full Kleinanzeigen search/category URL. Unlike /inserate, this
+// preserves everything encoded in the URL — category (c225 = Grafikkarten),
+// offers-only (anzeige:angebote), price range (preis:min:max) — because the
+// scraper navigates the real URL rather than rebuilding it from query params.
+export async function searchByUrl(params: SearchByUrlParams): Promise<KleinanzeigenListing[]> {
+  const response = await fetch(`${BASE_URL}/inserate-by-url`, {
+    method: "POST",
+    headers: { ...headers(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: params.url,
+      max_pages: params.max_pages ?? 1,
+      min_publish_date: params.min_publish_date ?? null,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
+  }
+  const data: { success: boolean; results: KleinanzeigenListing[] } = await response.json();
+  if (!data.success) throw new Error("Kleinanzeigen API returned success: false");
+  return data.results ?? [];
+}
+
+export interface CategoryUrlOptions {
+  categorySlug: string; // e.g. "s-grafikkarten"
+  categoryId: number; // e.g. 225
+  keyword?: string; // e.g. "rtx 3090" — slugified into the URL path
+  offersOnly?: boolean; // default true → adds anzeige:angebote (excludes "Gesuche")
+  min_price?: number;
+  max_price?: number;
+}
+
+// Build a Kleinanzeigen category search URL, e.g.
+//   s-grafikkarten / anzeige:angebote / preis::750 / rtx-3090 / k0c225
+// Segment order matters; Kleinanzeigen expects the filter segment (k0cNNN) last.
+export function buildCategoryUrl(opts: CategoryUrlOptions): string {
+  const segments: string[] = [opts.categorySlug];
+
+  if (opts.offersOnly !== false) segments.push("anzeige:angebote");
+
+  if (opts.min_price != null || opts.max_price != null) {
+    segments.push(`preis:${opts.min_price ?? ""}:${opts.max_price ?? ""}`);
+  }
+
+  if (opts.keyword) {
+    const slug = opts.keyword
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    if (slug) segments.push(slug);
+  }
+
+  segments.push(`k0c${opts.categoryId}`);
+  return `https://www.kleinanzeigen.de/${segments.join("/")}`;
+}
+
 export async function getListingDetail(id: string): Promise<Record<string, unknown>> {
   const response = await fetch(`${BASE_URL}/inserat/${id}`, { headers: headers() });
   if (!response.ok) {
@@ -57,18 +119,23 @@ export async function getListingDetail(id: string): Promise<Record<string, unkno
   return data.results ?? {};
 }
 
-// Keyword filter against a listing's title + description. Matching is done on a
-// whitespace-stripped, lowercased haystack so capacity tokens like "24gb" match
-// "24 GB"/"24gb"/"24GB" and "3090ti" matches "3090 Ti"/"3090Ti".
+// Keyword filter against a listing's title + description. Both the haystack and
+// the tokens are reduced to [a-z0-9] only, so:
+//   - "24 GB" / "24gb" / "24GB" all match the token "24gb"
+//   - "3090 Ti" / "3090Ti" match "3090ti"
+//   - umlauts survive the API's broken encoding: "Wasserkühler" arrives as
+//     mangled bytes, but stripping non-[a-z0-9] leaves "wasserkhler", which the
+//     ASCII-safe token "wasserk" still matches. (Hence tokens must be ASCII.)
+const clean = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export function listingMatches(
   listing: KleinanzeigenListing,
   opts: { requireAll?: string[]; excludeAny?: string[] }
 ): boolean {
-  const hay = `${listing.title} ${listing.description ?? ""}`.toLowerCase().replace(/\s+/g, "");
-  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, "");
+  const hay = clean(`${listing.title} ${listing.description ?? ""}`);
 
-  if (opts.excludeAny?.some((t) => hay.includes(norm(t)))) return false;
-  if (opts.requireAll && !opts.requireAll.every((t) => hay.includes(norm(t)))) return false;
+  if (opts.excludeAny?.some((t) => hay.includes(clean(t)))) return false;
+  if (opts.requireAll && !opts.requireAll.every((t) => hay.includes(clean(t)))) return false;
   return true;
 }
 

@@ -1,5 +1,5 @@
 import { task, schedules, logger } from "@trigger.dev/sdk";
-import { searchListings, listingMatches, parsePrice, type KleinanzeigenListing } from "../../lib/kleinanzeigen";
+import { searchByUrl, buildCategoryUrl, listingMatches, parsePrice, type KleinanzeigenListing } from "../../lib/kleinanzeigen";
 import { GPU_SEARCHES, type SearchTarget } from "../../config/kleinanzeigen-searches";
 
 // ---------------------------------------------------------------------------
@@ -28,20 +28,26 @@ export const kleinanzeigenSearch = task({
   run: async (payload: { target: SearchTarget; min_publish_date: string }) => {
     const { target, min_publish_date } = payload;
 
+    const url = buildCategoryUrl({
+      categorySlug: target.categorySlug ?? "s-grafikkarten",
+      categoryId: target.categoryId ?? 225,
+      keyword: target.keyword,
+      offersOnly: target.offersOnly,
+      min_price: target.min_price,
+      max_price: target.max_price,
+    });
+
     logger.log("Searching Kleinanzeigen", {
       id: target.id,
       label: target.label,
       max_price: target.max_price,
+      url,
       min_publish_date,
     });
 
-    const listings = await searchListings({
-      query: target.query,
-      page_count: target.page_count ?? 1,
-      location: target.location,
-      radius: target.radius,
-      min_price: target.min_price,
-      max_price: target.max_price,
+    const listings = await searchByUrl({
+      url,
+      max_pages: target.max_pages ?? 1,
       min_publish_date,
     });
 
