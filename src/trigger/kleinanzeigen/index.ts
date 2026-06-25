@@ -75,32 +75,40 @@ export const kleinanzeigenSearch = task({
 });
 
 // ---------------------------------------------------------------------------
-// Notification helper
+// Notification helper — ntfy.sh push
 // ---------------------------------------------------------------------------
 
 async function notify(listings: MatchedListing[]): Promise<void> {
-  const webhookUrl = process.env.KLEINANZEIGEN_NOTIFY_WEBHOOK_URL;
-  if (!webhookUrl) return;
+  const topic = process.env.KLEINANZEIGEN_NTFY_TOPIC;
+  if (!topic) return;
 
-  // Format compatible with Discord and Slack webhooks.
-  const lines = listings.map((l) => {
-    const price = l.price ?? "VB (Preis verhandelbar)";
-    const location = l.location ? ` · ${l.location}` : "";
-    return `**[${l.label}]** ${l.title} — ${price}${location}\n${l.url}`;
-  });
+  const ntfyBase = (process.env.KLEINANZEIGEN_NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
 
-  const body = {
-    content: `🖥️ **${listings.length} neue GPU-Anzeige${listings.length > 1 ? "n" : ""} auf Kleinanzeigen**\n\n${lines.join("\n\n")}`,
-  };
+  // One notification per listing so each is tappable and goes directly to the ad.
+  for (const l of listings) {
+    const price = l.price ? `${l.price} €` : "VB";
+    const location = l.location ?? "";
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    logger.warn("Webhook notification failed", { status: response.status });
+    await fetch(`${ntfyBase}/${topic}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // ntfy supports markdown-ish titles and click-through URLs
+      },
+      body: JSON.stringify({
+        topic,
+        title: `${l.label} — ${price}`,
+        message: [l.title, location].filter(Boolean).join(" · "),
+        priority: 4,        // high
+        tags: ["computer"], // 💻 emoji in the notification
+        click: l.url,       // tap notification → opens the listing
+        actions: [
+          { action: "view", label: "Anzeige öffnen", url: l.url },
+        ],
+      }),
+    }).then((r) => {
+      if (!r.ok) logger.warn("ntfy notification failed", { status: r.status, adid: l.adid });
+    });
   }
 }
 
