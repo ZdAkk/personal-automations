@@ -13,10 +13,6 @@ import {
   type KleinanzeigenTarget,
 } from "../../config/kleinanzeigen-watches";
 
-// The child receives a KleinanzeigenWatch instance as plain JSON (methods are
-// stripped crossing the task boundary, but the class is pure data — the
-// constructor already normalized everything we read — so its type describes the
-// payload exactly).
 interface MatchedListing {
   label: string;
   adid: string;
@@ -24,6 +20,16 @@ interface MatchedListing {
   price: string | null;
   url: string;
   location: string | null;
+}
+
+// The notification context a listing needs, lifted off its watch so we don't
+// ship the whole watch (with all targets) on every notify trigger.
+interface NotifyContext {
+  title: string; // watch.title
+  description: string; // watch.description
+  emoji?: string;
+  priority?: number;
+  topicEnv?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,43 +82,52 @@ async function runTarget(
 }
 
 // ---------------------------------------------------------------------------
-// Notify — one ntfy push per listing, carrying the watch's context.
+// Notify task: send ONE ntfy push for ONE listing.
+//
+// Triggered with idempotencyKey = adid, so a given ad notifies exactly once even
+// though the poller's lookback window overlaps consecutive runs (and even if two
+// targets in the same run match the same ad). The TTL only needs to outlast that
+// overlap; after it the ad has long dropped out of the fetch window anyway.
 // ---------------------------------------------------------------------------
 
-async function notify(watch: KleinanzeigenWatch, listings: MatchedListing[]): Promise<void> {
-  const topic =
-    process.env[watch.notify.topicEnv ?? "KLEINANZEIGEN_NTFY_TOPIC"] ??
-    process.env.KLEINANZEIGEN_NTFY_TOPIC;
-  if (!topic) return;
+export const notifyListing = task({
+  id: "kleinanzeigen-notify",
+  retry: { maxAttempts: 3 },
+  run: async (payload: { listing: MatchedListing; context: NotifyContext }) => {
+    const { listing, context } = payload;
 
-  const ntfyBase = (process.env.KLEINANZEIGEN_NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
-  const tags = watch.notify.emoji ? [watch.notify.emoji] : [];
-  const priority = watch.notify.priority ?? 4;
+    const topic =
+      process.env[context.topicEnv ?? "KLEINANZEIGEN_NTFY_TOPIC"] ?? process.env.KLEINANZEIGEN_NTFY_TOPIC;
+    if (!topic) {
+      logger.warn("No ntfy topic configured; skipping notification", { adid: listing.adid });
+      return { sent: false };
+    }
 
-  for (const l of listings) {
-    const price = l.price ? `${l.price} €` : "VB";
-    const message = [l.title, l.location, watch.description].filter(Boolean).join(" · ");
+    const ntfyBase = (process.env.KLEINANZEIGEN_NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
+    const price = listing.price ? `${listing.price} €` : "VB";
+    const message = [listing.title, listing.location, context.description].filter(Boolean).join(" · ");
 
-    await fetch(`${ntfyBase}/${topic}`, {
+    const r = await fetch(`${ntfyBase}/${topic}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         topic,
-        title: `${watch.title}: ${l.label} — ${price}`,
+        title: `${context.title}: ${listing.label} — ${price}`,
         message,
-        priority,
-        tags,
-        click: l.url, // tap notification → opens the listing
-        actions: [{ action: "view", label: "Anzeige öffnen", url: l.url }],
+        priority: context.priority ?? 4,
+        tags: context.emoji ? [context.emoji] : [],
+        click: listing.url, // tap notification → opens the listing
+        actions: [{ action: "view", label: "Anzeige öffnen", url: listing.url }],
       }),
-    }).then((r) => {
-      if (!r.ok) logger.warn("ntfy notification failed", { status: r.status, adid: l.adid });
     });
-  }
-}
+
+    if (!r.ok) throw new Error(`ntfy failed: ${r.status} ${await r.text()}`);
+    return { sent: true, adid: listing.adid };
+  },
+});
 
 // ---------------------------------------------------------------------------
-// Child task: process ONE watch (category) — all its targets, dedupe, notify.
+// Child task: process ONE watch (category) — run its targets, fan out notifies.
 // ---------------------------------------------------------------------------
 
 export const kleinanzeigenWatch = task({
@@ -122,28 +137,40 @@ export const kleinanzeigenWatch = task({
     const { watch, minPublishDate } = payload;
     logger.log("Watch starting", { watch: watch.id, targets: watch.targets.length });
 
-    const matches: MatchedListing[] = [];
-    const seen = new Set<string>();
-
+    const found: MatchedListing[] = [];
     for (const target of watch.targets) {
-      const found = await runTarget(watch, target, minPublishDate);
-      for (const m of found) {
-        if (!seen.has(m.adid)) {
-          seen.add(m.adid);
-          matches.push(m);
-        }
-      }
+      found.push(...(await runTarget(watch, target, minPublishDate)));
     }
+
+    // Collapse the same ad matched by multiple targets so we issue one notify
+    // trigger per ad (the idempotency key would dedupe anyway — this just avoids
+    // redundant triggers).
+    const matches = [...new Map(found.map((m) => [m.adid, m])).values()];
 
     logger.log("Watch complete", { watch: watch.id, matches: matches.length });
+    if (matches.length === 0) return { watch: watch.id, matched: 0 };
 
-    if (matches.length > 0) {
-      logger.log(
-        `New listings: ${watch.title}`,
-        Object.fromEntries(matches.map((m, i) => [`listing_${i}`, `${m.label} — ${m.price ?? "VB"} — ${m.url}`]))
-      );
-      await notify(watch, matches);
-    }
+    logger.log(
+      `New listings: ${watch.title}`,
+      Object.fromEntries(matches.map((m, i) => [`listing_${i}`, `${m.label} — ${m.price ?? "VB"} — ${m.url}`]))
+    );
+
+    const context: NotifyContext = {
+      title: watch.title,
+      description: watch.description,
+      emoji: watch.notify.emoji,
+      priority: watch.notify.priority,
+      topicEnv: watch.notify.topicEnv,
+    };
+
+    // Fire-and-forget; idempotencyKey = adid guarantees once-per-ad across the
+    // overlapping poll windows. The ad's own id is globally unique on Kleinanzeigen.
+    await notifyListing.batchTrigger(
+      matches.map((listing) => ({
+        payload: { listing, context },
+        options: { idempotencyKey: listing.adid, idempotencyKeyTTL: "1h" },
+      }))
+    );
 
     return { watch: watch.id, matched: matches.length };
   },
@@ -157,8 +184,10 @@ export const kleinanzeigenPoller = schedules.task({
   id: "kleinanzeigen-poller",
   cron: "*/5 * * * *",
   run: async () => {
-    // 8-minute lookback gives a 3-minute overlap over the 5-minute cadence so
-    // nothing slips between runs; per-watch dedup avoids double-alerting.
+    // Generous 8-minute lookback so a fresh listing is never missed between runs
+    // (clock skew / late runs). The resulting overlap can return the same ad in
+    // two consecutive runs, but notifyListing's adid idempotency makes that a
+    // no-op — so we get "never miss" without "double notify".
     const cutoff = new Date(Date.now() - 8 * 60 * 1000);
     const minPublishDate = cutoff.toISOString().slice(0, 19);
     const window = cutoff.toISOString().slice(0, 16);
