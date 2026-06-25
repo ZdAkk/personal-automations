@@ -47,6 +47,10 @@ export interface KleinanzeigenWatchConfig {
   category: { slug: string; id: number };
   /** Offers only (excludes "Gesuche"). Default true. */
   offersOnly?: boolean;
+  /** Postal code to centre the search on (e.g. "10178"). Omit for nationwide. */
+  location?: string;
+  /** Radius in km around `location`. Only applies when `location` is set. */
+  radius?: number;
   /** Pages to fetch per target. Default 1. */
   maxPages?: number;
   notify?: NotifyMeta;
@@ -69,6 +73,8 @@ export class KleinanzeigenWatch {
   readonly description: string;
   readonly category: { slug: string; id: number };
   readonly offersOnly: boolean;
+  readonly location?: string;
+  readonly radius?: number;
   readonly maxPages: number;
   readonly notify: NotifyMeta;
   readonly targets: KleinanzeigenTarget[];
@@ -79,6 +85,8 @@ export class KleinanzeigenWatch {
     this.description = cfg.description;
     this.category = cfg.category;
     this.offersOnly = cfg.offersOnly ?? true;
+    this.location = cfg.location;
+    this.radius = cfg.radius;
     this.maxPages = cfg.maxPages ?? 1;
     this.notify = cfg.notify ?? {};
 
@@ -90,52 +98,41 @@ export class KleinanzeigenWatch {
   }
 }
 
-// ── Kleinanzeigen categories ────────────────────────────────────────────────
-const GRAFIKKARTEN = { slug: "s-grafikkarten", id: 225 };
-
-// ── Shared GPU noise: coolers, packaging, cables, trade offers, laptop cards ─
-// ASCII-only (the API mangles umlaut bytes); "wasserk" catches "Wasserkühler".
-const GPU_COMMON_EXCLUDE = [
-  // laptop GPUs (mobile variant carries the same chip name)
-  "laptop",
-  "notebook",
-  "thinkpad",
-  "precision",
-  "zbook",
-  // trade / broken (offers-only already removes "Suche" wanted ads)
-  "tausch",
-  "defekt",
-  // cooling accessories sold on their own
-  "waterblock",
-  "wasserblock",
-  "wasserk",
-  "eiswolf",
-  "eisblock",
-  "alphacool",
-  "glacier",
-  "backplate",
-  // packaging / collectibles / cables — never the card itself
-  "leerkarton",
-  "sammler",
-  "sticker",
-  "aufkleber",
-  "cablemod",
-];
-
 export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
   new KleinanzeigenWatch({
     id: "gpu-deals",
     title: "GPU Deal",
     description: "High-VRAM GPU under budget",
-    category: GRAFIKKARTEN,
+    category: { slug: "s-grafikkarten", id: 225 },
     notify: { emoji: "computer", priority: 4 },
-    commonExclude: GPU_COMMON_EXCLUDE,
+    commonExclude: [
+      "laptop",
+      "notebook",
+      "thinkpad",
+      "precision",
+      "zbook",
+      "tausch",
+      "defekt",
+      "waterblock",
+      "wasserblock",
+      "wasserk",
+      "eiswolf",
+      "eisblock",
+      "alphacool",
+      "glacier",
+      "backplate",
+      "leerkarton",
+      "sammler",
+      "sticker",
+      "aufkleber",
+      "cablemod",
+    ],
     targets: [
       {
         id: "rtx-3090",
         label: "RTX 3090 24 GB",
         keyword: "rtx 3090",
-        min_price: 200, // below this is accessories (coolers top out ~185)
+        min_price: 400,
         max_price: 750,
         requireAll: ["3090"],
         excludeAny: ["3090ti", "3080"],
@@ -144,7 +141,7 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
         id: "rtx-3090-ti",
         label: "RTX 3090 Ti 24 GB",
         keyword: "rtx 3090 ti",
-        min_price: 250,
+        min_price: 450,
         max_price: 750,
         requireAll: ["3090ti"],
         excludeAny: ["karton"],
@@ -153,15 +150,15 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
         id: "rtx-a5000",
         label: "RTX A5000 24 GB",
         keyword: "rtx a5000",
-        min_price: 400,
+        min_price: 500,
         max_price: 1300,
-        requireAll: ["a5000", "24gb"], // desktop card is 24GB; laptop A5000 is 16GB
+        requireAll: ["a5000", "24gb"],
       },
       {
         id: "rtx-a5500",
         label: "RTX A5500 24 GB",
         keyword: "rtx a5500",
-        min_price: 500,
+        min_price: 800,
         max_price: 1800,
         requireAll: ["a5500"],
       },
@@ -169,7 +166,7 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
         id: "rtx-a6000",
         label: "RTX A6000 48 GB",
         keyword: "rtx a6000",
-        min_price: 600,
+        min_price: 1000,
         max_price: 2100,
         requireAll: ["a6000", "48gb"],
         excludeAny: ["ada"],
@@ -178,23 +175,13 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
         id: "nvidia-a40",
         label: "NVIDIA A40 48 GB",
         keyword: "nvidia a40",
-        min_price: 500,
+        min_price: 1200,
         max_price: 1800,
-        // "A40" is generic even inside the category — require model + 48gb.
         requireAll: ["a40", "48gb"],
         excludeAny: ["galaxy", "samsung", "celica", "klima"],
       },
     ],
   }),
 
-  // ── Add another category below, e.g.: ─────────────────────────────────────
-  // new KleinanzeigenWatch({
-  //   id: "mechanical-keyboards",
-  //   title: "Keyboard Deal",
-  //   description: "Enthusiast mechanical keyboards",
-  //   category: { slug: "s-pc-zubehoer-software", id: 161 },
-  //   notify: { emoji: "keyboard", priority: 3, topicEnv: "KLEINANZEIGEN_NTFY_TOPIC_KEEBS" },
-  //   commonExclude: ["defekt", "tausch"],
-  //   targets: [{ id: "tofu65", label: "Tofu65", keyword: "tofu65", max_price: 150 }],
-  // }),
+  // More targets can be added here
 ];

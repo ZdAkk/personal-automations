@@ -4,6 +4,7 @@ import {
   buildCategoryUrl,
   listingMatches,
   parsePrice,
+  parseDistanceKm,
   type KleinanzeigenListing,
 } from "../../lib/kleinanzeigen";
 import {
@@ -21,6 +22,8 @@ interface WatchData {
   description: string;
   category: { slug: string; id: number };
   offersOnly: boolean;
+  location?: string;
+  radius?: number;
   maxPages: number;
   notify: NotifyMeta;
   targets: KleinanzeigenTarget[];
@@ -51,11 +54,21 @@ async function runTarget(
     offersOnly: watch.offersOnly,
     min_price: target.min_price,
     max_price: target.max_price,
+    location: watch.location,
+    radius: watch.radius,
   });
 
   const listings = await searchByUrl({ url, max_pages: watch.maxPages, min_publish_date: minPublishDate });
 
   return listings
+    // Enforce the radius: with a location active, Kleinanzeigen pads the page
+    // with out-of-radius ads tagged "(N km)". Keep only those within radius
+    // (untagged listings are kept — they only appear when no location is set).
+    .filter((l: KleinanzeigenListing) => {
+      if (watch.radius == null) return true;
+      const km = parseDistanceKm(l.location);
+      return km === null || km <= watch.radius;
+    })
     .filter((l: KleinanzeigenListing) =>
       listingMatches(l, { requireAll: target.requireAll, excludeAny: target.excludeAny })
     )

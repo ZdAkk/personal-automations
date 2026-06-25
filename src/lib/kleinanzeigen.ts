@@ -83,17 +83,29 @@ export interface CategoryUrlOptions {
   offersOnly?: boolean; // default true → adds anzeige:angebote (excludes "Gesuche")
   min_price?: number;
   max_price?: number;
+  location?: string; // postal code, e.g. "10178"
+  radius?: number; // km around the postal code
 }
 
 // Build a Kleinanzeigen category search URL, e.g.
 //   s-grafikkarten / anzeige:angebote / preis::750 / rtx-3090 / k0c225
 // Segment order matters; Kleinanzeigen expects the filter segment (k0cNNN) last.
+//
+// Location is a query string (?locationStr=ZIP&radius=KM). Two quirks:
+//   - the `preis:` PATH segment and the locationStr query are mutually
+//     exclusive — when both are present Kleinanzeigen silently ignores the
+//     location. So price is only encoded in the URL when there's no location;
+//     with a location, the caller enforces price client-side instead.
+//   - even with a location active, Kleinanzeigen pads the page with
+//     out-of-radius ads tagged "(N km)", so the caller must also enforce the
+//     radius via parseDistanceKm().
 export function buildCategoryUrl(opts: CategoryUrlOptions): string {
   const segments: string[] = [opts.categorySlug];
 
   if (opts.offersOnly !== false) segments.push("anzeige:angebote");
 
-  if (opts.min_price != null || opts.max_price != null) {
+  const hasLocation = Boolean(opts.location);
+  if (!hasLocation && (opts.min_price != null || opts.max_price != null)) {
     segments.push(`preis:${opts.min_price ?? ""}:${opts.max_price ?? ""}`);
   }
 
@@ -107,7 +119,24 @@ export function buildCategoryUrl(opts: CategoryUrlOptions): string {
   }
 
   segments.push(`k0c${opts.categoryId}`);
-  return `https://www.kleinanzeigen.de/${segments.join("/")}`;
+  let url = `https://www.kleinanzeigen.de/${segments.join("/")}`;
+
+  const query = new URLSearchParams();
+  if (opts.location) query.set("locationStr", opts.location);
+  if (opts.radius != null) query.set("radius", String(opts.radius));
+  const qs = query.toString();
+  if (qs) url += `?${qs}`;
+
+  return url;
+}
+
+// When a location search is active, Kleinanzeigen annotates each listing's
+// location with its distance, e.g. "81677 Bogenhausen (4 km)" (German decimals,
+// e.g. "12,5 km", are handled). Returns the distance in km, or null if absent.
+export function parseDistanceKm(location: string | null): number | null {
+  if (!location) return null;
+  const m = location.match(/\(([\d.,]+)\s*km\)/);
+  return m ? parseFloat(m[1].replace(",", ".")) : null;
 }
 
 export async function getListingDetail(id: string): Promise<Record<string, unknown>> {
