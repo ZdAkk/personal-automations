@@ -82,6 +82,17 @@ async function runTarget(
     }));
 }
 
+// Auth for the single, shared ntfy account — one user, every topic. Basic auth
+// over HTTPS. Returns {} when no creds are set (public topic).
+function ntfyAuthHeader(): Record<string, string> {
+  const user = process.env.NTFY_USER;
+  const pass = process.env.NTFY_PASSWORD;
+  if (user && pass) {
+    return { Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}` };
+  }
+  return {};
+}
+
 // ---------------------------------------------------------------------------
 // Notify task: send ONE ntfy push for ONE listing.
 //
@@ -104,13 +115,13 @@ export const notifyListing = task({
       return { sent: false };
     }
 
-    const ntfyBase = (process.env.KLEINANZEIGEN_NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
+    const ntfyBase = (process.env.NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
     const price = listing.price ? `${listing.price} €` : "VB";
     const message = [listing.title, listing.location, context.description].filter(Boolean).join(" · ");
 
     const r = await fetch(`${ntfyBase}/${topic}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...ntfyAuthHeader() },
       body: JSON.stringify({
         topic,
         title: `${context.title}: ${listing.label} — ${price}`,
