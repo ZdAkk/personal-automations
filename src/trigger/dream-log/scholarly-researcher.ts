@@ -10,7 +10,7 @@
  */
 
 import { task, logger } from "@trigger.dev/sdk";
-import { researchWithBrowsingAndSources } from "../../lib/ai";
+import { researchWithBrowsingAndSources } from "../../lib/adapters/ai";
 
 export const scholarlyResearcher = task({
   id: "scholarly-researcher",

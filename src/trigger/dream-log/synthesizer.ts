@@ -19,8 +19,8 @@
  */
 
 import { task, logger } from "@trigger.dev/sdk";
-import { chat } from "../../lib/ai";
-import { addInterpretation, type DreamSymbol, type InterpretationPayload } from "../../lib/knowledge-base";
+import { chat } from "../../lib/adapters/ai";
+import { addInterpretation, type DreamSymbol, type InterpretationPayload } from "../../lib/adapters/knowledge-base";
 
 export const dreamSynthesizer = task({
   id: "dream-synthesizer",

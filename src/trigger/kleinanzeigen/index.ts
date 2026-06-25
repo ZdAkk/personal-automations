@@ -6,7 +6,8 @@ import {
   parsePrice,
   parseDistanceKm,
   type KleinanzeigenListing,
-} from "../../lib/kleinanzeigen";
+} from "../../lib/adapters/kleinanzeigen";
+import * as ntfy from "../../lib/adapters/ntfy";
 import {
   KLEINANZEIGEN_WATCHES,
   KleinanzeigenWatch,
@@ -82,19 +83,8 @@ async function runTarget(
     }));
 }
 
-// Auth for the single, shared ntfy account — one user, every topic. Basic auth
-// over HTTPS. Returns {} when no creds are set (public topic).
-function ntfyAuthHeader(): Record<string, string> {
-  const user = process.env.NTFY_USER;
-  const pass = process.env.NTFY_PASSWORD;
-  if (user && pass) {
-    return { Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}` };
-  }
-  return {};
-}
-
 // ---------------------------------------------------------------------------
-// Notify task: send ONE ntfy push for ONE listing.
+// Notify task: send ONE ntfy push for ONE listing (via the ntfy adapter).
 //
 // Triggered with idempotencyKey = adid, so a given ad notifies exactly once.
 // This is the *only* thing preventing re-alerts: every poll fetches all current
@@ -115,25 +105,18 @@ export const notifyListing = task({
       return { sent: false };
     }
 
-    const ntfyBase = (process.env.NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
     const price = listing.price ? `${listing.price} €` : "VB";
-    const message = [listing.title, listing.location, context.description].filter(Boolean).join(" · ");
 
-    const r = await fetch(`${ntfyBase}/${topic}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...ntfyAuthHeader() },
-      body: JSON.stringify({
-        topic,
-        title: `${context.title}: ${listing.label} — ${price}`,
-        message,
-        priority: context.priority ?? 4,
-        tags: context.emoji ? [context.emoji] : [],
-        click: listing.url, // tap notification → opens the listing
-        actions: [{ action: "view", label: "Anzeige öffnen", url: listing.url }],
-      }),
+    await ntfy.publish({
+      topic,
+      title: `${context.title}: ${listing.label} — ${price}`,
+      message: [listing.title, listing.location, context.description].filter(Boolean).join(" · "),
+      priority: context.priority ?? 4,
+      tags: context.emoji ? [context.emoji] : [],
+      click: listing.url, // tap notification → opens the listing
+      actions: [{ action: "view", label: "Anzeige öffnen", url: listing.url }],
     });
 
-    if (!r.ok) throw new Error(`ntfy failed: ${r.status} ${await r.text()}`);
     return { sent: true, adid: listing.adid };
   },
 });

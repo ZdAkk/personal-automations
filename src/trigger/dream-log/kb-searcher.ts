@@ -16,8 +16,8 @@
  */
 
 import { task, logger } from "@trigger.dev/sdk";
-import { chat } from "../../lib/ai";
-import { searchBooks } from "../../lib/knowledge-base";
+import { chat } from "../../lib/adapters/ai";
+import { searchBooks } from "../../lib/adapters/knowledge-base";
 
 export const knowledgeBaseSearcher = task({
   id: "knowledge-base-searcher",

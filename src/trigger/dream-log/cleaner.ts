@@ -15,8 +15,8 @@
  */
 
 import { task, logger } from "@trigger.dev/sdk";
-import { chat } from "../../lib/ai";
-import { ingestDream } from "../../lib/knowledge-base";
+import { chat } from "../../lib/adapters/ai";
+import { ingestDream } from "../../lib/adapters/knowledge-base";
 
 export const dreamCleaner = task({
   id: "dream-cleaner",
