@@ -38,8 +38,7 @@ interface NotifyContext {
 
 async function runTarget(
   watch: KleinanzeigenWatch,
-  target: KleinanzeigenTarget,
-  minPublishDate: string
+  target: KleinanzeigenTarget
 ): Promise<MatchedListing[]> {
   const url = buildCategoryUrl({
     categorySlug: watch.category.slug,
@@ -52,7 +51,9 @@ async function runTarget(
     radius: watch.radius,
   });
 
-  const listings = await searchByUrl({ url, max_pages: watch.maxPages, min_publish_date: minPublishDate });
+  // No publish-date window: every poll fetches all current matches. Re-alerting
+  // is prevented by notifyListing's adid idempotency, not by a freshness filter.
+  const listings = await searchByUrl({ url, max_pages: watch.maxPages });
 
   return listings
     // Enforce the radius: with a location active, Kleinanzeigen pads the page
@@ -84,10 +85,10 @@ async function runTarget(
 // ---------------------------------------------------------------------------
 // Notify task: send ONE ntfy push for ONE listing.
 //
-// Triggered with idempotencyKey = adid, so a given ad notifies exactly once even
-// though the poller's lookback window overlaps consecutive runs (and even if two
-// targets in the same run match the same ad). The TTL only needs to outlast that
-// overlap; after it the ad has long dropped out of the fetch window anyway.
+// Triggered with idempotencyKey = adid, so a given ad notifies exactly once.
+// This is the *only* thing preventing re-alerts: every poll fetches all current
+// matches, and the 30-day TTL means an ad already seen won't ping again until
+// long after it's gone (a relisted ad gets a new adid, so it would alert anew).
 // ---------------------------------------------------------------------------
 
 export const notifyListing = task({
@@ -133,13 +134,13 @@ export const notifyListing = task({
 export const kleinanzeigenWatch = task({
   id: "kleinanzeigen-watch",
   retry: { maxAttempts: 3 },
-  run: async (payload: { watch: KleinanzeigenWatch; minPublishDate: string }) => {
-    const { watch, minPublishDate } = payload;
+  run: async (payload: { watch: KleinanzeigenWatch }) => {
+    const { watch } = payload;
     logger.log("Watch starting", { watch: watch.id, targets: watch.targets.length });
 
     const found: MatchedListing[] = [];
     for (const target of watch.targets) {
-      found.push(...(await runTarget(watch, target, minPublishDate)));
+      found.push(...(await runTarget(watch, target)));
     }
 
     // Collapse the same ad matched by multiple targets so we issue one notify
@@ -151,7 +152,7 @@ export const kleinanzeigenWatch = task({
     if (matches.length === 0) return { watch: watch.id, matched: 0 };
 
     logger.log(
-      `New listings: ${watch.title}`,
+      `Matches: ${watch.title}`,
       Object.fromEntries(matches.map((m, i) => [`listing_${i}`, `${m.label} — ${m.price ?? "VB"} — ${m.url}`]))
     );
 
@@ -163,12 +164,12 @@ export const kleinanzeigenWatch = task({
       topicEnv: watch.notify.topicEnv,
     };
 
-    // Fire-and-forget; idempotencyKey = adid guarantees once-per-ad across the
-    // overlapping poll windows. The ad's own id is globally unique on Kleinanzeigen.
+    // Fire-and-forget; idempotencyKey = adid guarantees once-per-ad. The 30-day
+    // TTL means a still-listed ad never re-pings; a relisted ad (new adid) does.
     await notifyListing.batchTrigger(
       matches.map((listing) => ({
         payload: { listing, context },
-        options: { idempotencyKey: listing.adid, idempotencyKeyTTL: "1h" },
+        options: { idempotencyKey: listing.adid, idempotencyKeyTTL: "30d" },
       }))
     );
 
@@ -183,20 +184,18 @@ export const kleinanzeigenWatch = task({
 export const kleinanzeigenPoller = schedules.task({
   id: "kleinanzeigen-poller",
   cron: "*/5 * * * *",
-  run: async () => {
-    // Generous 8-minute lookback so a fresh listing is never missed between runs
-    // (clock skew / late runs). The resulting overlap can return the same ad in
-    // two consecutive runs, but notifyListing's adid idempotency makes that a
-    // no-op — so we get "never miss" without "double notify".
-    const cutoff = new Date(Date.now() - 8 * 60 * 1000);
-    const minPublishDate = cutoff.toISOString().slice(0, 19);
-    const window = cutoff.toISOString().slice(0, 16);
+  run: async (payload) => {
+    // Each poll fetches all current matches; re-alerting is handled downstream by
+    // notifyListing's adid idempotency, so there's no freshness window here.
+    // Key the per-watch run on the scheduled timestamp so a poller retry reuses
+    // the same run instead of re-scraping.
+    const window = payload.timestamp.toISOString().slice(0, 16);
 
-    logger.log("Kleinanzeigen poller starting", { watches: KLEINANZEIGEN_WATCHES.length, minPublishDate });
+    logger.log("Kleinanzeigen poller starting", { watches: KLEINANZEIGEN_WATCHES.length });
 
     for (const watch of KLEINANZEIGEN_WATCHES) {
       const result = await kleinanzeigenWatch.triggerAndWait(
-        { watch, minPublishDate },
+        { watch },
         { idempotencyKey: `${watch.id}-${window}` }
       );
       if (!result.ok) {

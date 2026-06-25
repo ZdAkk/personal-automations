@@ -103,6 +103,11 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
     id: "gpu-deals",
     title: "GPU Deal",
     description: "High-VRAM GPU under budget",
+    location: "30451",
+    radius: 200,
+    // With a location set, Kleinanzeigen sorts by distance (not date), so fetch
+    // a few pages to cover the radius rather than only the ~25 nearest ads.
+    maxPages: 3,
     category: { slug: "s-grafikkarten", id: 225 },
     notify: { emoji: "computer", priority: 4 },
     commonExclude: [
@@ -133,7 +138,7 @@ export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
         label: "RTX 3090 24 GB",
         keyword: "rtx 3090",
         min_price: 400,
-        max_price: 750,
+        max_price: 1050,
         requireAll: ["3090"],
         excludeAny: ["3090ti", "3080"],
       },
