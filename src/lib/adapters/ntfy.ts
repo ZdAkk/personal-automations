@@ -5,12 +5,25 @@
  * the JSON wire format live here; callers just hand over a NtfyMessage.
  *
  * Env:
- *   NTFY_URL       server base (default https://ntfy.sh)
+ *   NTFY_URL       server base — REQUIRED, no default (set to https://ntfy.sh
+ *                  explicitly to use the public server; see baseUrl()).
  *   NTFY_USER      account username  ┐ Basic auth for a protected (deny-all)
  *   NTFY_PASSWORD  account password  ┘ server; omit both for a public server.
  */
 
-const BASE_URL = (process.env.NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
+// Resolve the server at call time and refuse to guess. Defaulting to the public
+// ntfy.sh silently would publish private alerts to a public server if NTFY_URL
+// were ever unset (e.g. missing in a deployed env) — so fail loudly instead.
+function baseUrl(): string {
+  const url = process.env.NTFY_URL;
+  if (!url) {
+    throw new Error(
+      "NTFY_URL is not set. Set it explicitly (e.g. https://ntfy.alakad.de, or " +
+        "https://ntfy.sh for the public server) — refusing to default to a public server."
+    );
+  }
+  return url.replace(/\/$/, "");
+}
 
 export interface NtfyAction {
   action: "view";
@@ -42,7 +55,7 @@ function authHeader(): Record<string, string> {
 // the body (per ntfy's API) — NOT to /<topic>, which would treat the JSON as
 // the literal message text.
 export async function publish(msg: NtfyMessage): Promise<void> {
-  const response = await fetch(BASE_URL, {
+  const response = await fetch(baseUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify(msg),
