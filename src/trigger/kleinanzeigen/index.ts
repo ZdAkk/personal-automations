@@ -9,26 +9,14 @@ import {
 } from "../../lib/kleinanzeigen";
 import {
   KLEINANZEIGEN_WATCHES,
+  KleinanzeigenWatch,
   type KleinanzeigenTarget,
-  type NotifyMeta,
 } from "../../config/kleinanzeigen-watches";
 
-// Serialized shape of a KleinanzeigenWatch as it arrives in the child payload
-// (a class instance crosses the task boundary as plain data — methods are gone,
-// but the constructor already normalized everything we read here).
-interface WatchData {
-  id: string;
-  title: string;
-  description: string;
-  category: { slug: string; id: number };
-  offersOnly: boolean;
-  location?: string;
-  radius?: number;
-  maxPages: number;
-  notify: NotifyMeta;
-  targets: KleinanzeigenTarget[];
-}
-
+// The child receives a KleinanzeigenWatch instance as plain JSON (methods are
+// stripped crossing the task boundary, but the class is pure data — the
+// constructor already normalized everything we read — so its type describes the
+// payload exactly).
 interface MatchedListing {
   label: string;
   adid: string;
@@ -43,7 +31,7 @@ interface MatchedListing {
 // ---------------------------------------------------------------------------
 
 async function runTarget(
-  watch: WatchData,
+  watch: KleinanzeigenWatch,
   target: KleinanzeigenTarget,
   minPublishDate: string
 ): Promise<MatchedListing[]> {
@@ -91,7 +79,7 @@ async function runTarget(
 // Notify — one ntfy push per listing, carrying the watch's context.
 // ---------------------------------------------------------------------------
 
-async function notify(watch: WatchData, listings: MatchedListing[]): Promise<void> {
+async function notify(watch: KleinanzeigenWatch, listings: MatchedListing[]): Promise<void> {
   const topic =
     process.env[watch.notify.topicEnv ?? "KLEINANZEIGEN_NTFY_TOPIC"] ??
     process.env.KLEINANZEIGEN_NTFY_TOPIC;
@@ -130,7 +118,7 @@ async function notify(watch: WatchData, listings: MatchedListing[]): Promise<voi
 export const kleinanzeigenWatch = task({
   id: "kleinanzeigen-watch",
   retry: { maxAttempts: 3 },
-  run: async (payload: { watch: WatchData; minPublishDate: string }) => {
+  run: async (payload: { watch: KleinanzeigenWatch; minPublishDate: string }) => {
     const { watch, minPublishDate } = payload;
     logger.log("Watch starting", { watch: watch.id, targets: watch.targets.length });
 
