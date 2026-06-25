@@ -52,8 +52,10 @@ export const kleinanzeigenSearch = task({
     });
 
     // Two-stage filter:
-    //   1. keyword match — drop noise the broad query pulled in (coolers, boxes, laptops)
-    //   2. price guard — keep VB/negotiable (null price) and confirmed-under-ceiling
+    //   1. keyword match — drop noise the category still contains (coolers, boxes, laptops)
+    //   2. price guard — keep VB/negotiable (null price); otherwise enforce the
+    //      [min_price, max_price] window (min cuts cheap accessories the keyword
+    //      filters miss, e.g. VB-free €1–185 coolers)
     const matches: MatchedListing[] = listings
       .filter((listing: KleinanzeigenListing) =>
         listingMatches(listing, { requireAll: target.requireAll, excludeAny: target.excludeAny })
@@ -62,7 +64,11 @@ export const kleinanzeigenSearch = task({
         const price_eur = parsePrice(listing.price);
         return { listing, price_eur };
       })
-      .filter(({ price_eur }) => price_eur === null || price_eur <= target.max_price)
+      .filter(
+        ({ price_eur }) =>
+          price_eur === null ||
+          (price_eur <= target.max_price && price_eur >= (target.min_price ?? 0))
+      )
       .map(({ listing, price_eur }) => ({
         target: target.id,
         label: target.label,

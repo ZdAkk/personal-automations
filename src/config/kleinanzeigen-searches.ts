@@ -9,9 +9,10 @@
 //      offers and laptop cards, none of which the category filter removes.
 //   3. price guard (client-side)   — final check on the parsed price.
 //
-// Keyword matching (layer 2) runs in listingMatches() against a whitespace-
-// stripped, lowercased haystack, so "24 GB"/"24gb"/"24GB" all match "24gb" and
-// "3090 Ti"/"3090Ti" match "3090ti".
+// Keyword matching (layer 2) runs in listingMatches() against a haystack
+// reduced to [a-z0-9] only, so "24 GB"/"24gb"/"24GB" all match "24gb",
+// "3090 Ti"/"3090Ti" match "3090ti", and the API's mangled umlaut bytes drop
+// out (use ASCII-prefix tokens like "wasserk" for "Wasserkühler").
 
 export interface SearchTarget {
   id: string;
@@ -34,7 +35,10 @@ export interface SearchTarget {
 }
 
 // Kleinanzeigen "Grafikkarten" (graphics cards) category.
-export const GPU_CATEGORY = { categorySlug: "s-grafikkarten", categoryId: 225 } as const;
+export const GPU_CATEGORY = {
+  categorySlug: "s-grafikkarten",
+  categoryId: 225,
+} as const;
 
 // Noise that survives the category filter: cooling accessories, packaging,
 // cables, trade offers and laptop cards — never the card we want.
@@ -73,8 +77,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "rtx-3090",
     label: "RTX 3090 24 GB",
     keyword: "rtx 3090",
+    min_price: 200, // below this is accessories (coolers/waterblocks top out ~185)
     max_price: 750,
-    max_pages: 2,
+    max_pages: 1,
     // All 3090s are 24GB — require the model, exclude the Ti and accessory noise.
     requireAll: ["3090"],
     excludeAny: [...COMMON_EXCLUDE, "3090ti", "3080"],
@@ -84,8 +89,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "rtx-3090-ti",
     label: "RTX 3090 Ti 24 GB",
     keyword: "rtx 3090 ti",
+    min_price: 250,
     max_price: 750,
-    max_pages: 2,
+    max_pages: 1,
     requireAll: ["3090ti"],
     excludeAny: [...COMMON_EXCLUDE, "karton"],
   },
@@ -94,8 +100,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "rtx-a5000",
     label: "RTX A5000 24 GB",
     keyword: "rtx a5000",
+    min_price: 400,
     max_price: 1300,
-    max_pages: 2,
+    max_pages: 1,
     requireAll: ["a5000", "24gb"], // desktop card is 24GB; laptop A5000 is 16GB
     excludeAny: COMMON_EXCLUDE,
   },
@@ -104,8 +111,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "rtx-a5500",
     label: "RTX A5500 24 GB",
     keyword: "rtx a5500",
+    min_price: 500,
     max_price: 1800,
-    max_pages: 2,
+    max_pages: 1,
     requireAll: ["a5500"],
     excludeAny: COMMON_EXCLUDE,
   },
@@ -114,8 +122,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "rtx-a6000",
     label: "RTX A6000 48 GB",
     keyword: "rtx a6000",
+    min_price: 600,
     max_price: 2100,
-    max_pages: 2,
+    max_pages: 1,
     requireAll: ["a6000", "48gb"],
     excludeAny: [...COMMON_EXCLUDE, "ada"],
   },
@@ -124,8 +133,9 @@ export const GPU_SEARCHES: SearchTarget[] = [
     id: "nvidia-a40",
     label: "NVIDIA A40 48 GB",
     keyword: "nvidia a40",
+    min_price: 500,
     max_price: 1800,
-    max_pages: 2,
+    max_pages: 1,
     // "A40" is generic even inside the category — requiring both the model and
     // 48gb pins it to the actual datacenter GPU.
     requireAll: ["a40", "48gb"],
