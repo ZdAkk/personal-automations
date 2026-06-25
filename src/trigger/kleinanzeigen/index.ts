@@ -1,4 +1,4 @@
-import { task, schedules, logger } from "@trigger.dev/sdk";
+import { task, schedules, logger, idempotencyKeys } from "@trigger.dev/sdk";
 import {
   searchByUrl,
   buildCategoryUrl,
@@ -158,14 +158,21 @@ export const kleinanzeigenWatch = task({
       topicEnv: watch.notify.topicEnv,
     };
 
-    // Fire-and-forget; idempotencyKey = adid guarantees once-per-ad. The 30-day
-    // TTL means a still-listed ad never re-pings; a relisted ad (new adid) does.
-    await notifyListing.batchTrigger(
-      matches.map((listing) => ({
+    // Fire-and-forget; idempotencyKey = adid guarantees once-per-ad. The key MUST
+    // be GLOBAL scope: a raw string defaults to `run` scope (per SDK v4.3.1+), which
+    // would re-scope the adid to each poll's parent run and re-notify every poll.
+    // Global + 30d TTL = a still-listed ad never re-pings; a failed notify clears
+    // the key so it retries next poll; a relisted ad (new adid) alerts anew.
+    const items = await Promise.all(
+      matches.map(async (listing) => ({
         payload: { listing, context },
-        options: { idempotencyKey: listing.adid, idempotencyKeyTTL: "30d" },
+        options: {
+          idempotencyKey: await idempotencyKeys.create(listing.adid, { scope: "global" }),
+          idempotencyKeyTTL: "30d",
+        },
       }))
     );
+    await notifyListing.batchTrigger(items);
 
     return { watch: watch.id, matched: matches.length };
   },
