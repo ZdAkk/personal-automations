@@ -18,6 +18,40 @@ export interface KleinanzeigenListing {
   published_at: string | null;
 }
 
+export interface KleinanzeigenPrice {
+  amount: string; // e.g. "535" — for Mietwohnungen this is the Kaltmiete
+  currency: string; // "€"
+  negotiable: boolean;
+}
+
+// Full detail record from POST /inserate/batch. `details` is a free-form dict
+// keyed by German labels ("Wohnfläche", "Zimmer", "Nebenkosten",
+// "Kaution / Genoss.-Anteile", "Verfügbar ab", "Tauschangebot", ...).
+export interface KleinanzeigenDetail {
+  id: string | null;
+  url_requested: string;
+  url_redirected?: string;
+  title: string | null;
+  status: string; // "active" | "sold" | "reserved" | "deleted"
+  not_found?: boolean;
+  price: KleinanzeigenPrice | null;
+  location: { zip: string; city: string; state: string } | null;
+  details: Record<string, string>;
+  // The scraper returns an array of feature labels, OR an empty object {} when a
+  // listing has no feature box. Normalise with featureList() before use.
+  features: string[] | Record<string, string>;
+  description: string | null;
+  seller: { name: string | null; type?: string } | null;
+}
+
+/** Normalise a detail's `features` (array, or {} when absent) to a string[]. */
+export function featureList(d: KleinanzeigenDetail): string[] {
+  const f = d.features as unknown;
+  if (Array.isArray(f)) return f.map(String);
+  if (f && typeof f === "object") return Object.values(f).map(String);
+  return [];
+}
+
 export interface SearchParams {
   query: string;
   page_count?: number;
@@ -118,7 +152,10 @@ export function buildCategoryUrl(opts: CategoryUrlOptions): string {
     if (slug) segments.push(slug);
   }
 
-  segments.push(`k0c${opts.categoryId}`);
+  // Keyword searches use the "k0c<id>" (keyword, page 0) form; a keyword-less
+  // category browse must use plain "c<id>" — "anzeige:angebote/k0c<id>" without
+  // a keyword returns almost nothing (Kleinanzeigen URL quirk).
+  segments.push(opts.keyword ? `k0c${opts.categoryId}` : `c${opts.categoryId}`);
   let url = `https://www.kleinanzeigen.de/${segments.join("/")}`;
 
   const query = new URLSearchParams();
@@ -146,6 +183,37 @@ export async function getListingDetail(id: string): Promise<Record<string, unkno
   }
   const data: { success: boolean; results: Record<string, unknown> } = await response.json();
   return data.results ?? {};
+}
+
+// POST /inserate/batch — full details for specific ad ids. Each ad spins up a
+// headless browser server-side, so this is ~1-2s/ad (vs. instant search): fetch
+// details ONLY for new, coarse-filtered candidates, never the whole superset.
+export async function fetchDetails(
+  ids: string[],
+  maxConcurrent = 3
+): Promise<KleinanzeigenDetail[]> {
+  if (ids.length === 0) return [];
+  const response = await fetch(`${BASE_URL}/inserate/batch`, {
+    method: "POST",
+    headers: { ...headers(), "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, max_concurrent: maxConcurrent }),
+  });
+  if (!response.ok) {
+    throw new Error(`Kleinanzeigen batch error: ${response.status} ${await response.text()}`);
+  }
+  const data: { success: boolean; results: KleinanzeigenDetail[] } = await response.json();
+  return data.results ?? [];
+}
+
+// Parse a German-formatted number out of a label value:
+//   "54 m²" -> 54 · "54,5 m²" -> 54.5 · "1.590 €" -> 1590 · "2,5" -> 2.5
+// Returns null when there's no numeric content.
+export function parseGermanNumber(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const m = raw.replace(/\./g, "").replace(",", ".").match(/-?\d+(\.\d+)?/);
+  if (!m) return null;
+  const v = parseFloat(m[0]);
+  return isNaN(v) ? null : v;
 }
 
 // Keyword filter against a listing's title + description. Both the haystack and
