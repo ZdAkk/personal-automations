@@ -125,7 +125,8 @@ export const dreamLog = task({
 
 export const dreamLogPoller = schedules.task({
   id: "dream-log-poller",
-  cron: "*/2 * * * *",
+  // Once a day at 12:00 UTC (was */2). Reduced to cut runner-container churn.
+  cron: "0 12 * * *",
   run: async () => {
     const provider = getNoteProvider(NoteCollection.Dreams);
 

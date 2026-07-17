@@ -32,7 +32,7 @@ export interface NotifyMeta {
   emoji?: string;
   /** ntfy priority 1–5 (default 4 = high). */
   priority?: number;
-  /** Env var holding this watch's ntfy topic. Falls back to KLEINANZEIGEN_NTFY_TOPIC. */
+  /** Env var holding this watch's ntfy topic. Falls back to GPU_NTFY_TOPIC. */
   topicEnv?: string;
 }
 
@@ -97,96 +97,96 @@ export class KleinanzeigenWatch {
     }));
   }
 }
+export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [];
+// export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
+//   new KleinanzeigenWatch({
+//     id: "gpu-deals",
+//     title: "GPU Deal",
+//     description: "High-VRAM GPU under budget",
+//     location: "30451",
+//     radius: 200,
+//     // With a location set, Kleinanzeigen sorts by distance (not date), so fetch
+//     // a few pages to cover the radius rather than only the ~25 nearest ads.
+//     maxPages: 3,
+//     category: { slug: "s-grafikkarten", id: 225 },
+//     notify: { emoji: "computer", priority: 4 },
+//     commonExclude: [
+//       "laptop",
+//       "notebook",
+//       "thinkpad",
+//       "precision",
+//       "zbook",
+//       "tausch",
+//       "defekt",
+//       "waterblock",
+//       "wasserblock",
+//       "wasserk",
+//       "eiswolf",
+//       "eisblock",
+//       "alphacool",
+//       "glacier",
+//       "backplate",
+//       "leerkarton",
+//       "sammler",
+//       "sticker",
+//       "aufkleber",
+//       "cablemod",
+//     ],
+//     targets: [
+//       {
+//         id: "rtx-3090",
+//         label: "RTX 3090 24 GB",
+//         keyword: "rtx 3090",
+//         min_price: 450,
+//         max_price: 750,
+//         requireAll: ["3090"],
+//         excludeAny: ["3090ti", "3080"],
+//       },
+//       {
+//         id: "rtx-3090-ti",
+//         label: "RTX 3090 Ti 24 GB",
+//         keyword: "rtx 3090 ti",
+//         min_price: 450,
+//         max_price: 750,
+//         requireAll: ["3090ti"],
+//         excludeAny: ["karton"],
+//       },
+//       {
+//         id: "rtx-a5000",
+//         label: "RTX A5000 24 GB",
+//         keyword: "rtx a5000",
+//         min_price: 500,
+//         max_price: 1200,
+//         requireAll: ["a5000", "24gb"],
+//       },
+//       {
+//         id: "rtx-a5500",
+//         label: "RTX A5500 24 GB",
+//         keyword: "rtx a5500",
+//         min_price: 800,
+//         max_price: 1500,
+//         requireAll: ["a5500"],
+//       },
+//       {
+//         id: "rtx-a6000",
+//         label: "RTX A6000 48 GB",
+//         keyword: "rtx a6000",
+//         min_price: 1000,
+//         max_price: 1800,
+//         requireAll: ["a6000", "48gb"],
+//         excludeAny: ["ada"],
+//       },
+//       {
+//         id: "nvidia-a40",
+//         label: "NVIDIA A40 48 GB",
+//         keyword: "nvidia a40",
+//         min_price: 1200,
+//         max_price: 2000,
+//         requireAll: ["a40", "48gb"],
+//         excludeAny: ["galaxy", "samsung", "celica", "klima"],
+//       },
+//     ],
+//   }),
 
-export const KLEINANZEIGEN_WATCHES: KleinanzeigenWatch[] = [
-  new KleinanzeigenWatch({
-    id: "gpu-deals",
-    title: "GPU Deal",
-    description: "High-VRAM GPU under budget",
-    location: "30451",
-    radius: 200,
-    // With a location set, Kleinanzeigen sorts by distance (not date), so fetch
-    // a few pages to cover the radius rather than only the ~25 nearest ads.
-    maxPages: 3,
-    category: { slug: "s-grafikkarten", id: 225 },
-    notify: { emoji: "computer", priority: 4 },
-    commonExclude: [
-      "laptop",
-      "notebook",
-      "thinkpad",
-      "precision",
-      "zbook",
-      "tausch",
-      "defekt",
-      "waterblock",
-      "wasserblock",
-      "wasserk",
-      "eiswolf",
-      "eisblock",
-      "alphacool",
-      "glacier",
-      "backplate",
-      "leerkarton",
-      "sammler",
-      "sticker",
-      "aufkleber",
-      "cablemod",
-    ],
-    targets: [
-      {
-        id: "rtx-3090",
-        label: "RTX 3090 24 GB",
-        keyword: "rtx 3090",
-        min_price: 450,
-        max_price: 750,
-        requireAll: ["3090"],
-        excludeAny: ["3090ti", "3080"],
-      },
-      {
-        id: "rtx-3090-ti",
-        label: "RTX 3090 Ti 24 GB",
-        keyword: "rtx 3090 ti",
-        min_price: 450,
-        max_price: 750,
-        requireAll: ["3090ti"],
-        excludeAny: ["karton"],
-      },
-      {
-        id: "rtx-a5000",
-        label: "RTX A5000 24 GB",
-        keyword: "rtx a5000",
-        min_price: 500,
-        max_price: 1200,
-        requireAll: ["a5000", "24gb"],
-      },
-      {
-        id: "rtx-a5500",
-        label: "RTX A5500 24 GB",
-        keyword: "rtx a5500",
-        min_price: 800,
-        max_price: 1500,
-        requireAll: ["a5500"],
-      },
-      {
-        id: "rtx-a6000",
-        label: "RTX A6000 48 GB",
-        keyword: "rtx a6000",
-        min_price: 1000,
-        max_price: 1800,
-        requireAll: ["a6000", "48gb"],
-        excludeAny: ["ada"],
-      },
-      {
-        id: "nvidia-a40",
-        label: "NVIDIA A40 48 GB",
-        keyword: "nvidia a40",
-        min_price: 1200,
-        max_price: 2000,
-        requireAll: ["a40", "48gb"],
-        excludeAny: ["galaxy", "samsung", "celica", "klima"],
-      },
-    ],
-  }),
-
-  // More targets can be added here
-];
+//   // More targets can be added here
+// ];

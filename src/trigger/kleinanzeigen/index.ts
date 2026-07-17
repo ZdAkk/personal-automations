@@ -99,7 +99,7 @@ export const notifyListing = task({
     const { listing, context } = payload;
 
     const topic =
-      process.env[context.topicEnv ?? "KLEINANZEIGEN_NTFY_TOPIC"] ?? process.env.KLEINANZEIGEN_NTFY_TOPIC;
+      process.env[context.topicEnv ?? "GPU_NTFY_TOPIC"] ?? process.env.GPU_NTFY_TOPIC;
     if (!topic) {
       logger.warn("No ntfy topic configured; skipping notification", { adid: listing.adid });
       return { sent: false };
@@ -184,7 +184,8 @@ export const kleinanzeigenWatch = task({
 
 export const kleinanzeigenPoller = schedules.task({
   id: "kleinanzeigen-poller",
-  cron: "*/5 * * * *",
+  // Hourly (was */5). Reduced to cut runner-container churn on the shared host.
+  cron: "0 * * * *",
   run: async (payload) => {
     // Each poll fetches all current matches; re-alerting is handled downstream by
     // notifyListing's adid idempotency, so there's no freshness window here.
