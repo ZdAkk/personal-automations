@@ -118,7 +118,7 @@ export const WOHNUNG_WATCHES: WohnungWatch[] = [
     maxPages: 10,
     criteria: {
       maxKaltmiete: 800,
-      minWohnflaeche: 30,
+      minWohnflaeche: 35,
       maxWohnflaeche: 70,
       // rooms: no constraint (per Zaid)
       excludeTausch: true,
