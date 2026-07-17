@@ -205,16 +205,9 @@ export async function fetchDetails(
   return data.results ?? [];
 }
 
-// Parse a German-formatted number out of a label value:
-//   "54 m²" -> 54 · "54,5 m²" -> 54.5 · "1.590 €" -> 1590 · "2,5" -> 2.5
-// Returns null when there's no numeric content.
-export function parseGermanNumber(raw: string | null | undefined): number | null {
-  if (!raw) return null;
-  const m = raw.replace(/\./g, "").replace(",", ".").match(/-?\d+(\.\d+)?/);
-  if (!m) return null;
-  const v = parseFloat(m[0]);
-  return isNaN(v) ? null : v;
-}
+// German number parsing lives in the shared apartments/text module; re-exported
+// here so existing importers keep working unchanged.
+export { parseGermanNumber } from "../apartments/text";
 
 // Keyword filter against a listing's title + description. Both the haystack and
 // the tokens are reduced to [a-z0-9] only, so:

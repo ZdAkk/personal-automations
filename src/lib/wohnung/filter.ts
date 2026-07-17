@@ -11,6 +11,7 @@ import {
   featureList,
   type KleinanzeigenDetail,
 } from "../adapters/kleinanzeigen";
+import { needsWbs, isFurnished, isTauschOffer } from "../apartments/text";
 import type { WohnungCriteria } from "../../config/wohnung-watches";
 
 export interface FilterResult {
@@ -79,31 +80,13 @@ export function applyCriteria(
 
   const hay = haystack(d);
 
-  // WBS required — but NOT when the ad says "kein / ohne WBS".
-  if (c.excludeWBS) {
-    const needsWbs = /\bwbs\b|wohnberechtigungsschein/.test(hay);
-    const noWbs = /(kein|ohne|nicht|no)\s*(wbs|wohnberechtigungsschein)/.test(hay);
-    if (needsWbs && !noWbs) return { pass: false, reason: "WBS required" };
+  // Shared German intent-matchers (see lib/apartments/text.ts).
+  if (c.excludeWBS && needsWbs(hay)) return { pass: false, reason: "WBS required" };
+  if (c.excludeMoebliert && isFurnished(hay, hasFeature(d, "möbliert"))) {
+    return { pass: false, reason: "möbliert" };
   }
-  // Furnished — via the structured feature, or text "möbliert"/"teilmöbliert"
-  // but NOT "unmöbliert" / "nicht möbliert".
-  if (c.excludeMoebliert) {
-    const furnished =
-      hasFeature(d, "möbliert") ||
-      /(?<!un)(?<!nicht )(?:teil|voll)?m[oö]bliert/.test(hay);
-    if (furnished) return { pass: false, reason: "möbliert" };
-  }
-  // Swap offer — the "Tauschangebot" detail field is authoritative ("Kein Tausch"
-  // vs a real swap); fall back to guarded text only when the field is absent.
-  if (c.excludeTausch) {
-    const t = (d.details?.["Tauschangebot"] ?? "").toLowerCase();
-    const title = (d.title ?? "").toLowerCase();
-    // The "Tauschangebot" field is authoritative ("Kein Tausch" vs a real swap),
-    // but posters often only announce the swap in the TITLE ("TAUSCHWOHNUNG",
-    // "Tausche 2-Zimmer") without setting the field — so catch both.
-    const fieldSwap = t.includes("tausch") && !t.includes("kein tausch");
-    const titleSwap = /\btausch/.test(title);
-    if (fieldSwap || titleSwap) return { pass: false, reason: "Tausch offer" };
+  if (c.excludeTausch && isTauschOffer(d.title ?? "", d.details?.["Tauschangebot"] ?? "")) {
+    return { pass: false, reason: "Tausch offer" };
   }
 
   const kalt = kaltmiete(d);

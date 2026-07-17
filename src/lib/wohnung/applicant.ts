@@ -70,19 +70,26 @@ const LOGISTICS_LINE =
   `Sie erreichen mich jederzeit unter ${APPLICANT.phone}.`;
 
 /**
- * Assemble the full, ready-to-send Kleinanzeigen message from a personalised
- * opening hook + the chosen framing. Everything except `hook` is fixed, so the
- * structure and the no-dash rule are guaranteed regardless of the LLM output.
+ * Assemble the full, ready-to-send message from a personalised opening hook +
+ * the chosen framing. Everything except `hook` is fixed, so the structure and
+ * the no-dash rule are guaranteed regardless of the LLM output.
+ *
+ * Salutation/closing default to the informal Kleinanzeigen style ("Hallo," /
+ * "Viele Grüße"); ImmoScout passes a formal salutation with the agent's name.
  */
-export function assembleLetter(hook: string, framing: Framing): string {
+export function assembleLetter(
+  hook: string,
+  framing: Framing,
+  opts: { salutation?: string; closing?: string } = {}
+): string {
   return [
-    "Hallo,",
+    opts.salutation ?? "Hallo,",
     hook.trim(),
     aboutParagraph(framing),
     SECURITY_BLOCK,
     MAPPE_LINE,
     LOGISTICS_LINE,
-    "Viele Grüße\n" + APPLICANT.fullName,
+    (opts.closing ?? "Viele Grüße") + "\n" + APPLICANT.fullName,
   ].join("\n\n");
 }
 
