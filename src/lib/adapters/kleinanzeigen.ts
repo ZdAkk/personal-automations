@@ -77,7 +77,7 @@ export async function searchListings(params: SearchParams): Promise<Kleinanzeige
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
   }
 
-  const data: { success: boolean; results: KleinanzeigenListing[] } = await response.json();
+  const data = (await response.json()) as { success: boolean; results: KleinanzeigenListing[] };
   if (!data.success) throw new Error("Kleinanzeigen API returned success: false");
   return data.results ?? [];
 }
@@ -105,7 +105,7 @@ export async function searchByUrl(params: SearchByUrlParams): Promise<Kleinanzei
   if (!response.ok) {
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
   }
-  const data: { success: boolean; results: KleinanzeigenListing[] } = await response.json();
+  const data = (await response.json()) as { success: boolean; results: KleinanzeigenListing[] };
   if (!data.success) throw new Error("Kleinanzeigen API returned success: false");
   return data.results ?? [];
 }
@@ -181,7 +181,7 @@ export async function getListingDetail(id: string): Promise<Record<string, unkno
   if (!response.ok) {
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
   }
-  const data: { success: boolean; results: Record<string, unknown> } = await response.json();
+  const data = (await response.json()) as { success: boolean; results: Record<string, unknown> };
   return data.results ?? {};
 }
 
@@ -201,7 +201,7 @@ export async function fetchDetails(
   if (!response.ok) {
     throw new Error(`Kleinanzeigen batch error: ${response.status} ${await response.text()}`);
   }
-  const data: { success: boolean; results: KleinanzeigenDetail[] } = await response.json();
+  const data = (await response.json()) as { success: boolean; results: KleinanzeigenDetail[] };
   return data.results ?? [];
 }
 

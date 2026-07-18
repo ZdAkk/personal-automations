@@ -119,6 +119,7 @@ export interface ImmoScoutExpose {
   availableFrom: string | null;
   features: string[];
   contactName: string | null;
+  imageUrl: string | null; // main photo (jpg, ~800x600) for the digest email
   isPrivate: boolean;
   notFound?: boolean;
 }
@@ -143,6 +144,17 @@ const FLAG_LABELS: Record<string, string> = {
   obj_garden: "Garten",
   obj_barrierFree: "Barrierefrei",
 };
+
+// Main photo from the MEDIA section (sections[0].media[]). The API returns webp
+// by default; some email clients (Outlook) don't render webp, so swap the
+// format token to jpg — IS24's image CDN honours it. Returns null if imageless.
+function mainImageUrl(sections: any[]): string | null {
+  const media: any[] = sections.find((s) => s.type === "MEDIA")?.media ?? [];
+  const pic = media.find((m) => m?.type === "PICTURE") ?? media[0];
+  const raw: string | null = pic?.previewImageUrl ?? pic?.fullImageUrl ?? null;
+  if (!raw) return null;
+  return raw.replace("/format/webp/", "/format/jpg/");
+}
 
 // Pull a labelled value out of an ATTRIBUTE_LIST section (label→text).
 function attr(sections: any[], listTitle: string, labelIncludes: string): string | null {
@@ -211,6 +223,7 @@ export async function fetchExpose(id: string): Promise<ImmoScoutExpose | null> {
     availableFrom: attr(sections, "Hauptkriterien", "Bezugsfrei"),
     features,
     contactName,
+    imageUrl: mainImageUrl(sections),
     isPrivate: yes(atp.obj_privateOffer),
   };
 }
@@ -234,6 +247,7 @@ function emptyExpose(id: string): ImmoScoutExpose {
     availableFrom: null,
     features: [],
     contactName: null,
+    imageUrl: null,
     isPrivate: false,
   };
 }

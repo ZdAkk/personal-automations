@@ -1,4 +1,4 @@
-import { task, schedules, logger, idempotencyKeys } from "@trigger.dev/sdk";
+import { task, schedules, logger } from "@trigger.dev/sdk";
 import {
   searchByUrl,
   buildCategoryUrl,
@@ -9,7 +9,8 @@ import {
   featureList,
   type KleinanzeigenListing,
 } from "../../lib/adapters/kleinanzeigen";
-import * as ntfy from "../../lib/adapters/ntfy";
+import { sendEmail } from "../../lib/adapters/email";
+import { renderDigest, type DigestItem } from "../../lib/apartments/digest";
 import { draftFromDetail } from "../../lib/wohnung/draft";
 import { applyCriteria } from "../../lib/wohnung/filter";
 import { WOHNUNG_WATCHES, WohnungWatch, type WohnungCriteria } from "../../config/wohnung-watches";
@@ -22,9 +23,21 @@ interface ProcessContext {
   criteria: WohnungCriteria;
   lmuMaxKm: number;
   warnMaxKm: number;
-  emoji?: string;
-  priority?: number;
-  topicEnv?: string;
+  window: string; // the poll window this listing was (first) processed in
+}
+
+interface ProcessResult {
+  adid: string;
+  matched: boolean;
+  window: string; // echoed back — equals the current window ONLY when freshly run
+  item?: DigestItem;
+  reason?: string;
+}
+
+// "2026-07-18T14:30" -> "18.07.2026"
+function dateLabel(window: string): string {
+  const [y, m, d] = window.slice(0, 10).split("-");
+  return `${d}.${m}.${y}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,23 +89,23 @@ async function runSearch(watch: WohnungWatch): Promise<KleinanzeigenListing[]> {
 
 // ---------------------------------------------------------------------------
 // STAGE 2 — per-listing: fetch the detail, apply the real criteria, and on a
-// pass draft the message + push ONE ntfy alert (body = the letter to send).
+// pass draft the message + build the digest item. Notifies NOTHING itself; the
+// watch collects the run's new matches into a single email.
 //
-// Triggered with idempotencyKey = adid (global), so each ad is detailed and
-// decided EXACTLY ONCE (a rejected ad is never re-fetched; a failed run clears
-// the key and retries). The `queue` throttles concurrent detail fetches so we
-// never hammer the scraper regardless of how many candidates a poll produced.
-//
-// Each step logs to the run trace so the whole decision is visible in the
-// dashboard: what was fetched, why it passed/failed, the draft, and the push.
+// Triggered with idempotencyKey = adid (global, 30d): each ad is detailed and
+// decided EXACTLY ONCE. The cached output preserves the ORIGINAL poll `window`,
+// so the watch tells "new this poll" (window === current) from "already handled"
+// without any external dedup store. The `queue` throttles concurrent detail
+// fetches so we never hammer the scraper.
 // ---------------------------------------------------------------------------
 
 export const processListing = task({
   id: "wohnung-process",
   queue: { concurrencyLimit: 4 },
   retry: { maxAttempts: 3 },
-  run: async (payload: { candidate: KleinanzeigenListing; context: ProcessContext }) => {
+  run: async (payload: { candidate: KleinanzeigenListing; context: ProcessContext }): Promise<ProcessResult> => {
     const { candidate, context } = payload;
+    const window = context.window;
     logger.info(`🔎 Processing ${candidate.adid}: ${candidate.title}`, {
       adid: candidate.adid,
       price: candidate.price,
@@ -106,7 +119,7 @@ export const processListing = task({
       logger.warn(`⏭️ Skipped ${candidate.adid}: listing gone / no detail`, {
         adid: candidate.adid,
       });
-      return { adid: candidate.adid, notified: false, reason: "no detail / gone" };
+      return { adid: candidate.adid, matched: false, window, reason: "no detail / gone" };
     }
     logger.info(`📄 Detail fetched: ${detail.title}`, {
       adid: candidate.adid,
@@ -123,18 +136,9 @@ export const processListing = task({
         adid: candidate.adid,
         reason: verdict.reason,
       });
-      return { adid: candidate.adid, notified: false, reason: verdict.reason };
+      return { adid: candidate.adid, matched: false, window, reason: verdict.reason };
     }
     logger.info(`✅ ${candidate.adid} passed the fine filter`, { adid: candidate.adid });
-
-    const topic =
-      process.env[context.topicEnv ?? "WOHNUNG_NTFY_TOPIC"] ?? process.env.WOHNUNG_NTFY_TOPIC;
-    if (!topic) {
-      logger.warn(`⚠️ No ntfy topic configured; not pushing ${candidate.adid}`, {
-        adid: candidate.adid,
-      });
-      return { adid: candidate.adid, notified: false, reason: "no topic" };
-    }
 
     const distanceKm = parseDistanceKm(candidate.location);
     const draft = await draftFromDetail(detail, distanceKm, {
@@ -153,49 +157,41 @@ export const processListing = task({
       hook: draft.body.split("\n\n")[1], // the LLM-generated opening sentence
     });
 
-    // Title = at-a-glance facts; body = the pure letter (long-press to copy).
-    const bits = [
-      draft.stadtteil,
-      draft.kaltmiete != null ? `${draft.kaltmiete}€ kalt` : null,
-      draft.warmmiete != null ? `${draft.warmmiete}€ warm` : null,
-      draft.wohnflaeche != null ? `${draft.wohnflaeche}m²` : null,
-      draft.zimmer != null ? `${draft.zimmer}Zi` : null,
-      distanceKm != null ? `${Math.round(distanceKm)}km` : null,
-    ].filter(Boolean);
-    const pushTitle = `${draft.far ? "⚠️ " : ""}${context.title}: ${bits.join(" · ")}`;
-
-    // Message body is the PURE letter so "copy message" in ntfy yields exactly
-    // the text to paste. Listing meta lives in the title (not copied); the ad
-    // title/details are one tap away via the click/action link below.
-    await ntfy.publish({
-      topic,
-      title: pushTitle,
-      message: draft.body,
-      priority: context.priority ?? 4,
-      tags: context.emoji ? [context.emoji] : [],
-      click: candidate.url,
-      actions: [{ action: "view", label: "Anzeige öffnen", url: candidate.url }],
-    });
-    logger.info(`📲 Pushed to ntfy "${topic}": ${pushTitle}`, { adid: candidate.adid });
-
-    return { adid: candidate.adid, notified: true, framing: draft.framing };
+    const item: DigestItem = {
+      source: "Kleinanzeigen",
+      id: candidate.adid,
+      title: detail.title ?? candidate.title ?? "",
+      url: candidate.url,
+      imageUrl: candidate.image_url,
+      location: draft.stadtteil,
+      kaltmiete: draft.kaltmiete,
+      warmmiete: draft.warmmiete,
+      wohnflaeche: draft.wohnflaeche,
+      zimmer: draft.zimmer,
+      contactName: detail.seller?.name ?? null,
+      far: draft.far,
+      distanceKm: distanceKm != null ? Math.round(distanceKm) : null,
+      letter: draft.body,
+    };
+    return { adid: candidate.adid, matched: true, window, item };
   },
 });
 
 // ---------------------------------------------------------------------------
-// Child task: process ONE watch — search, coarse-filter, fan out per listing.
+// Child task: process ONE watch — search, coarse-filter, fan out, email new hits.
 // ---------------------------------------------------------------------------
 
 export const wohnungWatch = task({
   id: "wohnung-watch",
   retry: { maxAttempts: 3 },
-  run: async (payload: { watch: WohnungWatch }) => {
-    const { watch } = payload;
+  run: async (payload: { watch: WohnungWatch; window: string }) => {
+    const { watch, window } = payload;
     logger.info(`🏠 Watch "${watch.id}" starting`, {
       location: watch.location,
       radius: watch.radius,
-      maxKaltmiete: watch.criteria.maxKaltmiete,
-      wohnflaeche: `${watch.criteria.minWohnflaeche ?? "?"}–${watch.criteria.maxWohnflaeche ?? "?"} m²`,
+      maxWarmmiete: watch.criteria.maxWarmmiete,
+      minWohnflaeche: watch.criteria.minWohnflaeche,
+      minZimmer: watch.criteria.minZimmer,
     });
 
     const candidates = await runSearch(watch);
@@ -203,7 +199,7 @@ export const wohnungWatch = task({
     const unique = [...new Map(candidates.map((c) => [c.adid, c])).values()];
     if (unique.length === 0) {
       logger.info(`🔚 Watch "${watch.id}": no candidates this poll`, { watch: watch.id });
-      return { watch: watch.id, candidates: 0 };
+      return { watch: watch.id, candidates: 0, matched: 0, emailed: 0 };
     }
     logger.info(`📋 ${unique.length} candidate(s) to detail-check`, {
       watch: watch.id,
@@ -216,32 +212,59 @@ export const wohnungWatch = task({
       criteria: watch.criteria,
       lmuMaxKm: watch.framing.lmuMaxKm,
       warnMaxKm: watch.framing.warnMaxKm,
-      emoji: watch.notify.emoji,
-      priority: watch.notify.priority,
-      topicEnv: watch.notify.topicEnv,
+      window,
     };
 
-    // idempotencyKey = adid (GLOBAL, TTL): each ad is detailed+decided once.
-    const items = await Promise.all(
-      unique.map(async (candidate) => ({
-        payload: { candidate, context },
-        options: {
-          idempotencyKey: await idempotencyKeys.create(candidate.adid, { scope: "global" }),
-          idempotencyKeyTTL: "30d",
-        },
-      }))
-    );
-    await processListing.batchTrigger(items);
-    logger.info(`🚀 Triggered ${unique.length} listing processor(s) for "${watch.id}"`, {
+    // idempotencyKey = adid (GLOBAL, 30d TTL): each ad is detailed+decided once.
+    const items = unique.map((candidate) => ({
+      payload: { candidate, context },
+      options: { idempotencyKey: candidate.adid, idempotencyKeyTTL: "30d" },
+    }));
+    const result = await processListing.batchTriggerAndWait(items);
+
+    // NEW this poll iff the run echoes the current window (cached, already-seen
+    // ads return the window they were first processed in).
+    const newItems: DigestItem[] = [];
+    let matchedTotal = 0;
+    for (const run of result.runs) {
+      if (!run.ok) {
+        logger.error(`⚠️ processListing failed`, { error: run.error });
+        continue;
+      }
+      if (run.output.matched) matchedTotal++;
+      if (run.output.matched && run.output.window === window && run.output.item) {
+        newItems.push(run.output.item);
+      }
+    }
+
+    logger.info(`📊 Watch "${watch.id}": ${unique.length} candidates, ${matchedTotal} match(es), ${newItems.length} new this poll`, {
       watch: watch.id,
+      candidates: unique.length,
+      matchedTotal,
+      newThisPoll: newItems.length,
     });
 
-    return { watch: watch.id, candidates: unique.length };
+    if (newItems.length > 0) {
+      const digest = renderDigest("Kleinanzeigen", newItems, dateLabel(window));
+      await sendEmail({ subject: digest.subject, html: digest.html, text: digest.text });
+      logger.info(`📧 Emailed ${newItems.length} new listing(s): ${digest.subject}`, {
+        watch: watch.id,
+        ids: newItems.map((i) => i.id),
+      });
+    }
+
+    return {
+      watch: watch.id,
+      candidates: unique.length,
+      matched: matchedTotal,
+      emailed: newItems.length,
+    };
   },
 });
 
 // ---------------------------------------------------------------------------
-// Poller: every 15 minutes, run one child per watch.
+// Poller: run one child per watch. The minute-precision window flows down so
+// per-listing runs can stamp "which poll first saw me".
 // ---------------------------------------------------------------------------
 
 export const wohnungPoller = schedules.task({
@@ -253,7 +276,7 @@ export const wohnungPoller = schedules.task({
 
     for (const watch of WOHNUNG_WATCHES) {
       const result = await wohnungWatch.triggerAndWait(
-        { watch },
+        { watch, window },
         { idempotencyKey: `${watch.id}-${window}` }
       );
       if (!result.ok) {

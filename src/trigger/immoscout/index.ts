@@ -1,10 +1,11 @@
-import { task, schedules, logger, idempotencyKeys } from "@trigger.dev/sdk";
+import { task, schedules, logger } from "@trigger.dev/sdk";
 import {
   searchList,
   fetchExpose,
   type ImmoScoutSearchItem,
 } from "../../lib/adapters/immoscout";
-import * as ntfy from "../../lib/adapters/ntfy";
+import { sendEmail } from "../../lib/adapters/email";
+import { renderDigest, type DigestItem } from "../../lib/apartments/digest";
 import { applyCriteria } from "../../lib/immoscout/filter";
 import { draftFromExpose } from "../../lib/immoscout/draft";
 import {
@@ -18,14 +19,26 @@ interface ProcessContext {
   criteria: ImmoScoutCriteria;
   lmuMaxKm: number;
   warnMaxKm: number;
-  emoji?: string;
-  priority?: number;
-  topicEnv?: string;
+  window: string; // the poll window this listing was (first) processed in
+}
+
+interface ProcessResult {
+  id: string;
+  matched: boolean;
+  window: string; // echoed back — equals the current window ONLY when freshly run
+  item?: DigestItem;
+  reason?: string;
+}
+
+// "2026-07-18T14:30" -> "18.07.2026"
+function dateLabel(window: string): string {
+  const [y, m, d] = window.slice(0, 10).split("-");
+  return `${d}.${m}.${y}`;
 }
 
 // ---------------------------------------------------------------------------
-// STAGE 1 — the mobile search API filters price/size/radius server-side, so
-// this just pages through newest-first results and coarse-drops junk titles.
+// STAGE 1 — the mobile search API filters price/size/rooms/radius server-side,
+// so this just pages through newest-first results and coarse-drops junk titles.
 // ---------------------------------------------------------------------------
 
 async function runSearch(watch: ImmoScoutWatch): Promise<ImmoScoutSearchItem[]> {
@@ -37,7 +50,9 @@ async function runSearch(watch: ImmoScoutWatch): Promise<ImmoScoutSearchItem[]> 
       lat: watch.lat,
       lon: watch.lon,
       radiusKm: watch.radiusKm,
-      maxPrice: watch.criteria.maxKaltmiete,
+      // Search price param is the base rent; warm >= kalt, so a Kaltmiete cap at
+      // the Warmmiete limit is a safe superset (fine filter enforces warm).
+      maxPrice: watch.criteria.maxWarmmiete ?? watch.criteria.maxKaltmiete,
       minLivingSpace: watch.criteria.minWohnflaeche,
       maxLivingSpace: watch.criteria.maxWohnflaeche,
       minRooms: watch.criteria.minZimmer,
@@ -67,16 +82,23 @@ async function runSearch(watch: ImmoScoutWatch): Promise<ImmoScoutSearchItem[]> 
 }
 
 // ---------------------------------------------------------------------------
-// STAGE 2 — per-listing: fetch expose, fine-filter, draft, push ONE ntfy alert.
-// idempotencyKey = expose id (global): each listing is decided exactly once.
+// STAGE 2 — per-listing: fetch expose, fine-filter, and on a pass draft the
+// letter + build the digest item. It notifies NOTHING itself; the watch collects
+// the new matches into one email.
+//
+// Triggered with idempotencyKey = expose id (global, 30d): each listing is
+// decided exactly once. Because the output is cached, a listing seen in a later
+// poll returns its ORIGINAL `window`; the watch uses window === currentWindow to
+// tell "new this poll" from "already handled" — no external dedup store needed.
 // ---------------------------------------------------------------------------
 
 export const processListing = task({
   id: "immoscout-process",
   queue: { concurrencyLimit: 4 },
   retry: { maxAttempts: 3 },
-  run: async (payload: { candidate: ImmoScoutSearchItem; context: ProcessContext }) => {
+  run: async (payload: { candidate: ImmoScoutSearchItem; context: ProcessContext }): Promise<ProcessResult> => {
     const { candidate, context } = payload;
+    const window = context.window;
     logger.info(`🔎 Processing ${candidate.id}: ${candidate.title}`, {
       id: candidate.id,
       address: candidate.addressLine,
@@ -88,7 +110,7 @@ export const processListing = task({
     const detail = await fetchExpose(candidate.id);
     if (!detail || detail.notFound) {
       logger.warn(`⏭️ Skipped ${candidate.id}: listing gone`, { id: candidate.id });
-      return { id: candidate.id, notified: false, reason: "gone" };
+      return { id: candidate.id, matched: false, window, reason: "gone" };
     }
     logger.info(`📄 Detail: ${detail.title}`, {
       id: candidate.id,
@@ -109,18 +131,9 @@ export const processListing = task({
         id: candidate.id,
         reason: verdict.reason,
       });
-      return { id: candidate.id, notified: false, reason: verdict.reason };
+      return { id: candidate.id, matched: false, window, reason: verdict.reason };
     }
     logger.info(`✅ ${candidate.id} passed the fine filter`, { id: candidate.id });
-
-    const topic =
-      process.env[context.topicEnv ?? "IMMOSCOUT_NTFY_TOPIC"] ?? process.env.IMMOSCOUT_NTFY_TOPIC;
-    if (!topic) {
-      logger.warn(`⚠️ No ntfy topic configured; not pushing ${candidate.id}`, {
-        id: candidate.id,
-      });
-      return { id: candidate.id, notified: false, reason: "no topic" };
-    }
 
     const draft = await draftFromExpose(
       detail,
@@ -134,50 +147,46 @@ export const processListing = task({
       hook: draft.body.split("\n\n")[1],
     });
 
-    const bits = [
-      draft.stadtteil,
-      draft.kaltmiete != null ? `${draft.kaltmiete}€ kalt` : null,
-      draft.warmmiete != null ? `${draft.warmmiete}€ warm` : null,
-      draft.wohnflaeche != null ? `${draft.wohnflaeche}m²` : null,
-      draft.zimmer != null ? `${draft.zimmer}Zi` : null,
-      draft.distanceKm != null ? `${draft.distanceKm}km` : null,
-    ].filter(Boolean);
-    const pushTitle = `${draft.far ? "⚠️ " : ""}${context.title}: ${bits.join(" · ")}`;
-
-    await ntfy.publish({
-      topic,
-      title: pushTitle,
-      message: draft.body, // pure letter — long-press to copy
-      priority: context.priority ?? 4,
-      tags: context.emoji ? [context.emoji] : [],
-      click: candidate.url,
-      actions: [{ action: "view", label: "Auf ImmoScout öffnen", url: candidate.url }],
-    });
-    logger.info(`📲 Pushed to ntfy "${topic}": ${pushTitle}`, { id: candidate.id });
-
-    return { id: candidate.id, notified: true, framing: draft.framing };
+    const item: DigestItem = {
+      source: "ImmoScout24",
+      id: candidate.id,
+      title: detail.title ?? candidate.title ?? "",
+      url: candidate.url,
+      imageUrl: detail.imageUrl,
+      location: draft.stadtteil,
+      kaltmiete: draft.kaltmiete,
+      warmmiete: draft.warmmiete,
+      wohnflaeche: draft.wohnflaeche,
+      zimmer: draft.zimmer,
+      contactName: draft.contactName,
+      far: draft.far,
+      distanceKm: draft.distanceKm,
+      letter: draft.body,
+    };
+    return { id: candidate.id, matched: true, window, item };
   },
 });
 
 // ---------------------------------------------------------------------------
-// Child task: process ONE watch — search, fan out per listing.
+// Child task: process ONE watch — search, fan out per listing, email new hits.
 // ---------------------------------------------------------------------------
 
 export const immoscoutWatch = task({
   id: "immoscout-watch",
   retry: { maxAttempts: 3 },
-  run: async (payload: { watch: ImmoScoutWatch }) => {
-    const { watch } = payload;
+  run: async (payload: { watch: ImmoScoutWatch; window: string }) => {
+    const { watch, window } = payload;
     logger.info(`🏠 IS24 watch "${watch.id}" starting`, {
       radiusKm: watch.radiusKm,
-      maxKaltmiete: watch.criteria.maxKaltmiete,
-      wohnflaeche: `${watch.criteria.minWohnflaeche ?? "?"}–${watch.criteria.maxWohnflaeche ?? "?"} m²`,
+      maxWarmmiete: watch.criteria.maxWarmmiete,
+      minWohnflaeche: watch.criteria.minWohnflaeche,
+      minZimmer: watch.criteria.minZimmer,
     });
 
     const candidates = await runSearch(watch);
     if (candidates.length === 0) {
       logger.info(`🔚 IS24 watch "${watch.id}": no candidates this poll`, { watch: watch.id });
-      return { watch: watch.id, candidates: 0 };
+      return { watch: watch.id, candidates: 0, matched: 0, emailed: 0 };
     }
 
     const context: ProcessContext = {
@@ -185,31 +194,59 @@ export const immoscoutWatch = task({
       criteria: watch.criteria,
       lmuMaxKm: watch.framing.lmuMaxKm,
       warnMaxKm: watch.framing.warnMaxKm,
-      emoji: watch.notify.emoji,
-      priority: watch.notify.priority,
-      topicEnv: watch.notify.topicEnv,
+      window,
     };
 
-    const items = await Promise.all(
-      candidates.map(async (candidate) => ({
-        payload: { candidate, context },
-        options: {
-          idempotencyKey: await idempotencyKeys.create(candidate.id, { scope: "global" }),
-          idempotencyKeyTTL: "30d",
-        },
-      }))
-    );
-    await processListing.batchTrigger(items);
-    logger.info(`🚀 Triggered ${candidates.length} listing processor(s) for "${watch.id}"`, {
+    // idempotencyKey = expose id (GLOBAL, 30d TTL): each listing is decided once.
+    const items = candidates.map((candidate) => ({
+      payload: { candidate, context },
+      options: { idempotencyKey: candidate.id, idempotencyKeyTTL: "30d" },
+    }));
+    const result = await processListing.batchTriggerAndWait(items);
+
+    // A run is NEW this poll iff it echoes the current window (a cached, already-
+    // seen listing returns the window it was first processed in).
+    const newItems: DigestItem[] = [];
+    let matchedTotal = 0;
+    for (const run of result.runs) {
+      if (!run.ok) {
+        logger.error(`⚠️ processListing failed`, { error: run.error });
+        continue;
+      }
+      if (run.output.matched) matchedTotal++;
+      if (run.output.matched && run.output.window === window && run.output.item) {
+        newItems.push(run.output.item);
+      }
+    }
+
+    logger.info(`📊 IS24 watch "${watch.id}": ${candidates.length} candidates, ${matchedTotal} match(es), ${newItems.length} new this poll`, {
       watch: watch.id,
+      candidates: candidates.length,
+      matchedTotal,
+      newThisPoll: newItems.length,
     });
 
-    return { watch: watch.id, candidates: candidates.length };
+    if (newItems.length > 0) {
+      const digest = renderDigest("ImmoScout24", newItems, dateLabel(window));
+      await sendEmail({ subject: digest.subject, html: digest.html, text: digest.text });
+      logger.info(`📧 Emailed ${newItems.length} new listing(s): ${digest.subject}`, {
+        watch: watch.id,
+        ids: newItems.map((i) => i.id),
+      });
+    }
+
+    return {
+      watch: watch.id,
+      candidates: candidates.length,
+      matched: matchedTotal,
+      emailed: newItems.length,
+    };
   },
 });
 
 // ---------------------------------------------------------------------------
-// Poller: every 15 minutes, run one child per watch.
+// Poller: run one child per watch. The minute-precision window flows down so
+// per-listing runs can stamp "which poll first saw me".
 // ---------------------------------------------------------------------------
 
 export const immoscoutPoller = schedules.task({
@@ -221,7 +258,7 @@ export const immoscoutPoller = schedules.task({
 
     for (const watch of IMMOSCOUT_WATCHES) {
       const result = await immoscoutWatch.triggerAndWait(
-        { watch },
+        { watch, window },
         { idempotencyKey: `is24-${watch.id}-${window}` }
       );
       if (!result.ok) {
