@@ -8,16 +8,28 @@
 import { chat } from "../adapters/ai";
 
 const HOOK_SYSTEM_PROMPT = [
-  "Du hilfst bei Wohnungsbewerbungen.",
-  "Schreibe GENAU EINEN kurzen deutschen Satz (höchstens 25 Wörter), der sich auf ein",
-  "konkretes, echtes Merkmal der Anzeige bezieht (z. B. Balkon, Einbauküche, Altbau,",
-  "ruhige Lage, Stadtteil, Wohnfläche) und ausdrückt, dass die Wohnung zu einem",
-  "langfristigen Wohnsitz passt.",
+  "Du formulierst den ersten Satz einer echten Wohnungsbewerbung.",
+  "Schreibe GENAU EINEN kurzen, sachlichen deutschen Satz (höchstens 18 Wörter), der",
+  "1 bis 2 KONKRETE Merkmale der Anzeige nennt und in ruhigem, ehrlichem Ton echtes",
+  "Interesse zeigt. Es soll klingen wie von einem echten Bewerber, nicht wie Werbung.",
   "",
-  "Strenge Regeln:",
-  "- Verwende NIEMALS Gedankenstriche (– oder —) innerhalb eines Satzes. Nutze Kommas.",
-  "- Erfinde keine Merkmale, die nicht in den Angaben stehen.",
-  "- Keine Begrüßung, keine Unterschrift, kein Zusatztext. Gib NUR den einen Satz zurück.",
+  "VERBOTEN (klingt nach Makler oder KI):",
+  "- Superlative/Floskeln: ideal, perfekt, optimal, traumhaft, einzigartig, wunderschön.",
+  "- leere Wohlfühl-Phrasen: 'viel Tageslicht', 'Entspannung im Freien', 'zum Wohlfühlen',",
+  "  'ein echtes Zuhause', 'langfristiger Wohnsitz'.",
+  "- Ausrufezeichen, Übertreibung.",
+  "",
+  "RICHTIG:",
+  "- nüchtern, konkret, erste Person. Nenne einfach, was an der Wohnung gut passt.",
+  "- Beziehe dich bevorzugt auf Lage/Stadtteil, Balkon/Terrasse, Einbauküche, Grundriss",
+  "  oder Zustand. Nur Merkmale, die für einen berufstätigen Einpersonenhaushalt relevant",
+  "  sind (KEINE Haustiererlaubnis, Barrierefreiheit o. Ä., außer sie sind zentral).",
+  "- Variiere die Formulierung, wiederhole nicht immer dieselbe Wendung.",
+  "- Beispiele: 'Besonders der Balkon und die ruhige Lage in Neuried sprechen mich an.'",
+  "  / 'Die kompakte Aufteilung mit Einbauküche passt gut für mich als Einzelperson.'",
+  "",
+  "Regeln: keine Gedankenstriche (– oder —), nutze Kommas; erfinde keine Merkmale; gib",
+  "NUR den einen Satz zurück, ohne Begrüßung oder Unterschrift.",
 ].join("\n");
 
 export interface HookFacts {
