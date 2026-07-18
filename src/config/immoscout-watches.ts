@@ -26,13 +26,7 @@ export interface ImmoScoutCriteria {
 
 export interface ImmoScoutFraming {
   lmuMaxKm: number; // beyond this distance from the centre, drop the LMU angle
-  warnMaxKm: number; // beyond this, flag "far" in the push
-}
-
-export interface ImmoScoutNotifyMeta {
-  emoji?: string;
-  priority?: number;
-  topicEnv?: string; // env var holding the topic; falls back to IMMOSCOUT_NTFY_TOPIC
+  warnMaxKm: number; // beyond this, flag "weiter entfernt" on the digest card
 }
 
 export interface ImmoScoutWatchConfig {
@@ -48,7 +42,6 @@ export interface ImmoScoutWatchConfig {
   pageSize?: number;
   criteria: ImmoScoutCriteria;
   framing: ImmoScoutFraming;
-  notify?: ImmoScoutNotifyMeta;
 }
 
 /** Plain-data config (survives the Trigger parent→child JSON boundary). */
@@ -63,7 +56,6 @@ export class ImmoScoutWatch {
   readonly pageSize: number;
   readonly criteria: ImmoScoutCriteria;
   readonly framing: ImmoScoutFraming;
-  readonly notify: ImmoScoutNotifyMeta;
 
   constructor(cfg: ImmoScoutWatchConfig) {
     this.id = cfg.id;
@@ -76,7 +68,6 @@ export class ImmoScoutWatch {
     this.pageSize = cfg.pageSize ?? 25;
     this.criteria = cfg.criteria;
     this.framing = cfg.framing;
-    this.notify = cfg.notify ?? {};
   }
 }
 
@@ -110,6 +101,5 @@ export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
       excludeKeywords: ["wohnberechtigungsschein", "wbs "],
     },
     framing: { lmuMaxKm: 45, warnMaxKm: 50 },
-    notify: { emoji: "house", priority: 4 },
   }),
 ];

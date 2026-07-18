@@ -48,14 +48,8 @@ export interface WohnungCriteria {
 export interface WohnungFraming {
   /** Beyond this distance (km) from `location`, drop the LMU angle (use neutral). */
   lmuMaxKm: number;
-  /** Beyond this distance (km), mark the listing "far" (⚠️ in the push title). */
+  /** Beyond this distance (km), flag "weiter entfernt" on the digest card. */
   warnMaxKm: number;
-}
-
-export interface WohnungNotifyMeta {
-  emoji?: string; // ntfy tag -> emoji (e.g. "house" -> 🏠)
-  priority?: number; // 1–5 (default 4)
-  topicEnv?: string; // env var holding the topic; falls back to WOHNUNG_NTFY_TOPIC
 }
 
 export interface WohnungWatchConfig {
@@ -71,7 +65,6 @@ export interface WohnungWatchConfig {
   maxPages?: number; // search pages per poll (Default 1). Search sorts by distance.
   criteria: WohnungCriteria;
   framing: WohnungFraming;
-  notify?: WohnungNotifyMeta;
 }
 
 /** Plain-data config (survives the Trigger parent->child JSON boundary). */
@@ -87,7 +80,6 @@ export class WohnungWatch {
   readonly maxPages: number;
   readonly criteria: WohnungCriteria;
   readonly framing: WohnungFraming;
-  readonly notify: WohnungNotifyMeta;
 
   constructor(cfg: WohnungWatchConfig) {
     this.id = cfg.id;
@@ -101,7 +93,6 @@ export class WohnungWatch {
     this.maxPages = cfg.maxPages ?? 1;
     this.criteria = cfg.criteria;
     this.framing = cfg.framing;
-    this.notify = cfg.notify ?? {};
   }
 }
 
@@ -150,6 +141,5 @@ export const WOHNUNG_WATCHES: WohnungWatch[] = [
       ],
     },
     framing: { lmuMaxKm: 45, warnMaxKm: 50 },
-    notify: { emoji: "house", priority: 4 },
   }),
 ];
