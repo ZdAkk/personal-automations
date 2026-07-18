@@ -57,8 +57,9 @@ const SECURITY_BLOCK = [
   `– Lückenloser Nachweis über zwei Jahre stets pünktlicher Mietzahlung von ${APPLICANT.paymentHistory}`,
 ].join("\n");
 
-// On Kleinanzeigen you can't reliably attach a PDF to the first message, so we
-// OFFER to send the Mappe rather than claiming it is enclosed.
+// Kleinanzeigen can't take an attachment on a first message, so there we OFFER
+// to send the Mappe. ImmoScout lets us attach the PDF directly, so the offer is
+// redundant there and is left out (see assembleLetter's includeMappeLine).
 const MAPPE_LINE =
   "Meine vollständige Bewerbermappe (Mieterselbstauskunft, SCHUFA-Check, Einkommensnachweis " +
   "und Zahlungsnachweise) sende ich Ihnen gerne als eine PDF, sodass Sie sich sofort ein " +
@@ -76,21 +77,27 @@ const LOGISTICS_LINE =
  *
  * Salutation/closing default to the informal Kleinanzeigen style ("Hallo," /
  * "Viele Grüße"); ImmoScout passes a formal salutation with the agent's name.
+ *
+ * `includeMappeLine` defaults to true (Kleinanzeigen, where the Mappe can only
+ * be offered). ImmoScout passes false because the PDF is attached to the message
+ * itself, so offering to send it would read as redundant.
  */
 export function assembleLetter(
   hook: string,
   framing: Framing,
-  opts: { salutation?: string; closing?: string } = {}
+  opts: { salutation?: string; closing?: string; includeMappeLine?: boolean } = {}
 ): string {
   return [
     opts.salutation ?? "Hallo,",
     hook.trim(),
     aboutParagraph(framing),
     SECURITY_BLOCK,
-    MAPPE_LINE,
+    opts.includeMappeLine === false ? null : MAPPE_LINE,
     LOGISTICS_LINE,
     (opts.closing ?? "Viele Grüße") + "\n" + APPLICANT.fullName,
-  ].join("\n\n");
+  ]
+    .filter((part): part is string => part !== null)
+    .join("\n\n");
 }
 
 // Fallback hook when the LLM call fails or returns nothing usable — generic but

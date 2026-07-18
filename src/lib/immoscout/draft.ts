@@ -82,6 +82,9 @@ export async function draftFromExpose(
   const body = assembleLetter(hook, framing, {
     salutation: salutation(e.contactName),
     closing: "Mit freundlichen Grüßen",
+    // On ImmoScout the Bewerbermappe PDF is attached to the message, so offering
+    // to send it would be redundant. Kleinanzeigen keeps the offer.
+    includeMappeLine: false,
   });
 
   return {
