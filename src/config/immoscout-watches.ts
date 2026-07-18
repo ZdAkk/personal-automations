@@ -98,7 +98,17 @@ export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
       excludeWBS: true,
       excludeMoebliert: false, // furnished OK (per Zaid)
       excludeTausch: true,
-      excludeKeywords: ["wohnberechtigungsschein", "wbs "],
+      // Coarse title reject. Mirrors the Kleinanzeigen watch: a shared room or a
+      // sublet isn't what's wanted, and IS24 does list WG rooms as apartments.
+      excludeKeywords: [
+        "wohnberechtigungsschein",
+        "wbs ",
+        "wohngemeinschaft",
+        "wg zimmer",
+        "wg-zimmer",
+        "zwischenmiete",
+        "untermiete",
+      ],
     },
     framing: { lmuMaxKm: 45, warnMaxKm: 50 },
   }),
