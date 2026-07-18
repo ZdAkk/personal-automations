@@ -82,17 +82,21 @@ export class ImmoScoutWatch {
 
 // ---------------------------------------------------------------------------
 // Zaid's live search — same criteria as the Kleinanzeigen wohnung watch:
-//   München (48.1371, 11.5754) + 50 km · Warmmiete <= 1000 € · >= 35 m²
+//   München (48.1371, 11.5754) + 65 km · Warmmiete <= 1000 € · >= 35 m²
 //   >= 1.5 Zimmer · no WBS · no Tausch · furnished OK
+//
+// 65 km (not 50) because the affordable stock sits outside the city: at 50 km
+// the search matched 844 listings, at 65 km it matches 1266. Anything past
+// framing.warnMaxKm still arrives flagged "weiter entfernt".
 // ---------------------------------------------------------------------------
 export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
   new ImmoScoutWatch({
     id: "muenchen",
     title: "IS24 München",
-    description: "ImmoScout24 Mietwohnung, München + 50 km",
+    description: "ImmoScout24 Mietwohnung, München + 65 km",
     lat: 48.1371,
     lon: 11.5754,
-    radiusKm: 50,
+    radiusKm: 65,
     // Newest-first search, so page 1 (~25) covers new listings between polls.
     maxPages: 2,
     pageSize: 25,

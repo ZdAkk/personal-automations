@@ -107,17 +107,21 @@ export class WohnungWatch {
 
 // ---------------------------------------------------------------------------
 // Zaid's live search (from his Kleinanzeigen filter panel):
-//   Mietwohnungen · Angebote · München + 50 km · Warmmiete <= 1000 €
+//   Mietwohnungen · Angebote · München + 65 km · Warmmiete <= 1000 €
 //   Wohnfläche >= 35 m² · >= 1.5 Zimmer (lenient when unknown) · no Tausch ·
 //   no WBS · furnished OK
+//
+// 65 km (not 50) to match the ImmoScout watch: the affordable stock is outside
+// the city. Kleinanzeigen accepts the non-preset radius (verified: results come
+// back out to 64 km). Anything past framing.warnMaxKm is flagged "weiter entfernt".
 // ---------------------------------------------------------------------------
 export const WOHNUNG_WATCHES: WohnungWatch[] = [
   new WohnungWatch({
     id: "muenchen",
     title: "Wohnung München",
-    description: "Mietwohnung, München + 50 km",
+    description: "Mietwohnung, München + 65 km",
     location: "80331", // München Altstadt — distance reference point
-    radius: 50,
+    radius: 65,
     // One page (~25 newest ads) per poll. The search is date-sorted (sortByDate
     // in the trigger), so page 1 is the newest across the whole radius, not the
     // closest; with the 15-min cadence one page catches everything new and stays
