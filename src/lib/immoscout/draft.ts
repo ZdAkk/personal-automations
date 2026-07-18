@@ -32,11 +32,18 @@ export interface DraftResult {
 }
 
 function salutation(contactName: string | null): string {
-  // Trim stray trailing punctuation/space in the scraped name ("Frau Langer." ->
-  // "Frau Langer"). Gender-neutral but personal when we have a name; safe formal
-  // fallback otherwise.
-  const name = contactName?.replace(/[.\s]+$/, "").trim();
-  return name ? `Guten Tag ${name},` : "Sehr geehrte Damen und Herren,";
+  const formal = "Sehr geehrte Damen und Herren,";
+  // Normalise whitespace and strip trailing punctuation ("Frau Langer." ->
+  // "Frau Langer", "Herr . ." -> "Herr").
+  const name = (contactName ?? "").replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+  if (!name) return formal;
+  // Placeholders IS24 puts in the contact field for private / anonymised ads.
+  if (/^(privat(angebot)?|provisionsfrei|eigent[üu]mer|anbieter|vermieter)$/i.test(name)) {
+    return formal;
+  }
+  // A bare salutation with no actual name ("Herr", "Frau", "Herrn").
+  if (/^(herr|herrn|frau)$/i.test(name)) return formal;
+  return `Guten Tag ${name},`;
 }
 
 export async function draftFromExpose(
