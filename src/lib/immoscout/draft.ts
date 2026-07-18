@@ -72,6 +72,8 @@ export async function draftFromExpose(
       zimmer: e.zimmer,
       features: e.features,
       description: e.description,
+      internetSpeed: e.internetSpeed,
+      condition: e.condition,
     },
     fallbackHook(stadtteil),
     model

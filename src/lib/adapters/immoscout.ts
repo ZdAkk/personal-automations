@@ -120,6 +120,11 @@ export interface ImmoScoutExpose {
   features: string[];
   contactName: string | null;
   imageUrl: string | null; // main photo (jpg, ~800x600) for the digest email
+  /** Advertised broadband, e.g. "1000 MBit/s" — highly relevant for remote work,
+   *  so it's surfaced to the letter's opening sentence. Null if not advertised. */
+  internetSpeed: string | null;
+  /** Objektzustand, e.g. "Neuwertig" / "Gepflegt" / "Renoviert". */
+  condition: string | null;
   isPrivate: boolean;
   notFound?: boolean;
 }
@@ -224,6 +229,11 @@ export async function fetchExpose(id: string): Promise<ImmoScoutExpose | null> {
     features,
     contactName,
     imageUrl: mainImageUrl(sections),
+    // Telekom broadband availability rides along in the ad targeting params.
+    internetSpeed: yes(atp.obj_telekomInternetAvailable)
+      ? (atp.obj_telekomInternetSpeed ?? null)
+      : null,
+    condition: attr(sections, "Bausubstanz & Energieausweis", "Objektzustand"),
     isPrivate: yes(atp.obj_privateOffer),
   };
 }
@@ -248,6 +258,8 @@ function emptyExpose(id: string): ImmoScoutExpose {
     features: [],
     contactName: null,
     imageUrl: null,
+    internetSpeed: null,
+    condition: null,
     isPrivate: false,
   };
 }
