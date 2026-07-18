@@ -4,8 +4,11 @@
 // ready-to-send application letter for easy copy). Shared by both the
 // Kleinanzeigen and ImmoScout scouts.
 //
-// Kept deliberately email-client-safe: a centred single column, inline styles
-// only, no external CSS/JS, jpg images (hotlinked from the source CDN).
+// Layout: a 2-column grid of compact cards (two ads per row) so more listings
+// are visible at a glance and the photos stay small. Kept email-client-safe:
+// table-based columns, inline styles only, no external CSS/JS, jpg images
+// (hotlinked from the source CDN). A media query stacks to one column on
+// narrow screens; clients that ignore it just show two narrower columns.
 // ============================================================================
 
 export interface DigestItem {
@@ -47,41 +50,50 @@ function factLine(it: DigestItem): string {
   return bits.join("  ·  ");
 }
 
-// One listing card.
-function card(it: DigestItem): string {
+const SANS = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+
+// The inner card (goes inside a grid cell). Smaller photo, tight spacing.
+function cardInner(it: DigestItem): string {
   const img = it.imageUrl
     ? `<a href="${escapeHtml(it.url)}" style="text-decoration:none;">
-         <img src="${escapeHtml(it.imageUrl)}" alt="" width="600"
-              style="width:100%;max-width:600px;height:auto;display:block;border-radius:10px 10px 0 0;border:0;" />
+         <img src="${escapeHtml(it.imageUrl)}" alt="" width="300"
+              style="width:100%;max-width:100%;height:auto;display:block;border-radius:11px 11px 0 0;border:0;" />
        </a>`
     : "";
 
   const badge = it.far
-    ? `<span style="display:inline-block;background:#fce8b2;color:#8a6d00;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;margin-bottom:8px;">⚠️ weiter entfernt</span><br/>`
+    ? `<span style="display:inline-block;background:#fce8b2;color:#8a6d00;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;margin-bottom:7px;">⚠️ weiter entfernt</span><br/>`
     : "";
 
   const contact = it.contactName
-    ? `<div style="font-size:13px;color:#6b7280;margin-top:2px;">Kontakt: ${escapeHtml(it.contactName)}</div>`
+    ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">Kontakt: ${escapeHtml(it.contactName)}</div>`
     : "";
 
   return `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;border:1px solid #e3e6ea;border-radius:12px;background:#ffffff;">
-    <tr><td style="padding:0;">${img}</td></tr>
-    <tr><td style="padding:18px 20px 20px 20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-      ${badge}
-      <div style="font-size:17px;font-weight:700;color:#111827;line-height:1.35;">${escapeHtml(it.title)}</div>
-      <div style="font-size:14px;color:#374151;margin-top:6px;">${escapeHtml(factLine(it))}</div>
-      ${contact}
-      <div style="margin:14px 0;">
-        <a href="${escapeHtml(it.url)}"
-           style="display:inline-block;background:#e4172b;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:9px 16px;border-radius:8px;">
-          Auf ${escapeHtml(it.source)} öffnen
-        </a>
-      </div>
-      <div style="font-size:12px;color:#6b7280;margin:14px 0 6px 0;text-transform:uppercase;letter-spacing:.04em;">Nachricht — zum Kopieren</div>
-      <div style="white-space:pre-wrap;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#111827;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:8px;padding:16px;">${escapeHtml(it.letter)}</div>
-    </td></tr>
-  </table>`;
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e6ea;border-radius:12px;background:#ffffff;">
+      <tr><td style="padding:0;">${img}</td></tr>
+      <tr><td style="padding:13px 15px 15px 15px;font-family:${SANS};">
+        ${badge}
+        <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeHtml(it.title)}</div>
+        <div style="font-size:13px;color:#374151;margin-top:5px;">${escapeHtml(factLine(it))}</div>
+        ${contact}
+        <div style="margin:12px 0;">
+          <a href="${escapeHtml(it.url)}"
+             style="display:inline-block;background:#e4172b;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;padding:8px 14px;border-radius:7px;">
+            Auf ${escapeHtml(it.source)} öffnen
+          </a>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin:12px 0 5px 0;text-transform:uppercase;letter-spacing:.04em;">Nachricht — zum Kopieren</div>
+        <div style="white-space:pre-wrap;font-family:${SANS};font-size:13px;line-height:1.5;color:#111827;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:8px;padding:14px;">${escapeHtml(it.letter)}</div>
+      </td></tr>
+    </table>`;
+}
+
+// One grid cell (50% wide). `filled` false renders an empty spacer cell so an
+// odd final row keeps its column widths.
+function cell(it: DigestItem | null): string {
+  const inner = it ? cardInner(it) : "";
+  return `<td class="digest-col" width="50%" valign="top" style="width:50%;padding:8px;vertical-align:top;">${inner}</td>`;
 }
 
 export interface RenderedDigest {
@@ -104,17 +116,28 @@ export function renderDigest(
   const subject = `🏠 ${n} ${noun} · ${source} · ${dateLabel}`;
 
   const header = `
-    <tr><td style="padding:4px 4px 20px 4px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <tr><td colspan="2" style="padding:4px 8px 18px 8px;font-family:${SANS};">
       <div style="font-size:20px;font-weight:800;color:#111827;">${n} ${noun}</div>
       <div style="font-size:13px;color:#6b7280;margin-top:3px;">${escapeHtml(source)} · ${escapeHtml(dateLabel)} · Bewerbermappe-PDF beim Senden anhängen</div>
     </td></tr>`;
 
+  // Two cards per row.
+  const rows: string[] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push(`<tr>${cell(items[i])}${cell(items[i + 1] ?? null)}</tr>`);
+  }
+
   const html = `
-  <div style="background:#eef0f3;padding:24px 12px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;">
+  <style>
+    @media only screen and (max-width:620px) {
+      .digest-col { display:block !important; width:100% !important; }
+    }
+  </style>
+  <div style="background:#eef0f3;padding:22px 10px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;margin:0 auto;">
       ${header}
-      <tr><td>${items.map(card).join("")}</td></tr>
-      <tr><td style="padding:8px 4px 4px 4px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#9ca3af;">
+      ${rows.join("")}
+      <tr><td colspan="2" style="padding:10px 8px 4px 8px;font-family:${SANS};font-size:12px;color:#9ca3af;">
         Automatischer Wohnungs-Scout · nur zur Information, es wird nichts automatisch gesendet.
       </td></tr>
     </table>
