@@ -38,6 +38,11 @@ export function applyCriteria(e: ImmoScoutExpose, c: ImmoScoutCriteria): FilterR
   // Warmmiete is the primary cap. When it's missing, fall back to Kaltmiete as a
   // necessary (if weaker) bound, since warm >= kalt.
   if (c.maxWarmmiete != null) {
+    // No rent at all: not an actionable rental (swap ads look like this). Without
+    // this, a priceless listing slips past every rent check.
+    if (e.warmmiete == null && e.kaltmiete == null) {
+      return { pass: false, reason: "no rent stated" };
+    }
     if (e.warmmiete != null) {
       if (e.warmmiete > c.maxWarmmiete)
         return { pass: false, reason: `Warmmiete ${e.warmmiete} > ${c.maxWarmmiete}` };

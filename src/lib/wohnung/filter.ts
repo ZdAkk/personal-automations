@@ -98,6 +98,10 @@ export function applyCriteria(
   // exceeds the cap (lenient on unknown Nebenkosten — you review each anyway).
   if (c.maxWarmmiete != null) {
     const warm = warmmiete(d);
+    // No rent at all: not an actionable rental (swap ads look like this).
+    if (warm == null && kalt == null) {
+      return { pass: false, reason: "no rent stated" };
+    }
     if (warm != null && warm > c.maxWarmmiete) {
       return { pass: false, reason: `Warmmiete ${warm} > ${c.maxWarmmiete}` };
     }

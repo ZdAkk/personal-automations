@@ -27,11 +27,19 @@ export function isFurnished(hay: string, hasFurnishedFlag = false): boolean {
 }
 
 /** Swap offer — a "Tauschangebot" field says a real swap, or the title announces
- *  one ("TAUSCHWOHNUNG", "Tausche 2-Zimmer"). */
+ *  one ("TAUSCHWOHNUNG", "Tausche 2-Zimmer", "Wohnungstausch: ...", "Wohnungsswap").
+ *
+ *  The compound spellings matter: a plain /\btausch/ anchor matches
+ *  "Tauschwohnung" but NOT "Wohnungstausch" (the preceding "s" kills the word
+ *  boundary), which let every wohnungstausch.de listing through the filter.
+ *  "Austausch der Fenster" is deliberately still NOT a match. */
 export function isTauschOffer(title: string, tauschField = ""): boolean {
   const t = tauschField.toLowerCase();
   const fieldSwap = t.includes("tausch") && !t.includes("kein tausch");
-  const titleSwap = /\btausch/.test(title.toLowerCase());
+  const titleSwap =
+    /wohnungstausch|tauschwohnung|tauschangebot|wohnungsswap|\bswap\b|\btausch\w*/.test(
+      title.toLowerCase()
+    );
   return fieldSwap || titleSwap;
 }
 
