@@ -52,12 +52,21 @@ function factLine(it: DigestItem): string {
 
 const SANS = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
 
+// Fixed photo height so every card is the same shape no matter the source
+// aspect ratio — portrait shots (e.g. wohnungsswap screenshots) would otherwise
+// run absurdly tall and blow the card out.
+const IMG_H = 170;
+
 // The inner card (goes inside a grid cell). Smaller photo, tight spacing.
 function cardInner(it: DigestItem): string {
+  // object-fit:cover crops (not squashes) in modern clients; the wrapper's
+  // fixed height + overflow:hidden bounds it in clients that ignore object-fit.
   const img = it.imageUrl
-    ? `<a href="${escapeHtml(it.url)}" style="text-decoration:none;">
-         <img src="${escapeHtml(it.imageUrl)}" alt="" width="300"
-              style="width:100%;max-width:100%;height:auto;display:block;border-radius:11px 11px 0 0;border:0;" />
+    ? `<a href="${escapeHtml(it.url)}" style="text-decoration:none;display:block;">
+         <div style="height:${IMG_H}px;overflow:hidden;border-radius:11px 11px 0 0;line-height:0;font-size:0;">
+           <img src="${escapeHtml(it.imageUrl)}" alt="" width="320" height="${IMG_H}"
+                style="width:100%;height:${IMG_H}px;object-fit:cover;object-position:center;display:block;border:0;" />
+         </div>
        </a>`
     : "";
 
@@ -121,10 +130,17 @@ export function renderDigest(
       <div style="font-size:13px;color:#6b7280;margin-top:3px;">${escapeHtml(source)} · ${escapeHtml(dateLabel)} · Bewerbermappe-PDF beim Senden anhängen</div>
     </td></tr>`;
 
-  // Two cards per row.
+  // Two cards per row. A lone listing spans the full width instead of sitting
+  // in a half-width column next to an empty one (which reads as broken).
   const rows: string[] = [];
-  for (let i = 0; i < items.length; i += 2) {
-    rows.push(`<tr>${cell(items[i])}${cell(items[i + 1] ?? null)}</tr>`);
+  if (items.length === 1) {
+    rows.push(
+      `<tr><td colspan="2" valign="top" style="padding:8px;vertical-align:top;">${cardInner(items[0])}</td></tr>`
+    );
+  } else {
+    for (let i = 0; i < items.length; i += 2) {
+      rows.push(`<tr>${cell(items[i])}${cell(items[i + 1] ?? null)}</tr>`);
+    }
   }
 
   const html = `
