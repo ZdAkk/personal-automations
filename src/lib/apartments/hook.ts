@@ -68,7 +68,7 @@ export async function personalizedHook(
         { role: "system", content: HOOK_SYSTEM_PROMPT },
         { role: "user", content: userLines },
       ],
-      model ?? process.env.WOHNUNG_LLM_MODEL ?? "deepseek/deepseek-chat"
+      model ?? process.env.WOHNUNG_LLM_MODEL ?? "anthropic/claude-sonnet-4"
     );
     const line = out.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
     const cleaned = line.replace(/^["'»]|["'«]$/g, "").trim();
