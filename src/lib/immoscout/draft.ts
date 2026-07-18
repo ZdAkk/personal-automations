@@ -32,8 +32,11 @@ export interface DraftResult {
 }
 
 function salutation(contactName: string | null): string {
-  // Gender-neutral but personal when we have a name; safe formal fallback otherwise.
-  return contactName ? `Guten Tag ${contactName},` : "Sehr geehrte Damen und Herren,";
+  // Trim stray trailing punctuation/space in the scraped name ("Frau Langer." ->
+  // "Frau Langer"). Gender-neutral but personal when we have a name; safe formal
+  // fallback otherwise.
+  const name = contactName?.replace(/[.\s]+$/, "").trim();
+  return name ? `Guten Tag ${name},` : "Sehr geehrte Damen und Herren,";
 }
 
 export async function draftFromExpose(
