@@ -9,10 +9,11 @@
 // ============================================================================
 
 export interface ImmoScoutCriteria {
-  maxKaltmiete?: number; // €, also passed to the search API
+  maxWarmmiete?: number; // €, the primary rent cap; also used as the search price cap
+  maxKaltmiete?: number; // €, optional extra cap on base rent
   minWohnflaeche?: number; // m², also passed to the search API
   maxWohnflaeche?: number;
-  minZimmer?: number;
+  minZimmer?: number; // also passed to the search API
   maxZimmer?: number;
   maxKaution?: number;
   excludeWBS?: boolean;
@@ -81,8 +82,8 @@ export class ImmoScoutWatch {
 
 // ---------------------------------------------------------------------------
 // Zaid's live search — same criteria as the Kleinanzeigen wohnung watch:
-//   München (48.1371, 11.5754) + 50 km · Kaltmiete <= 800 € · 35–70 m²
-//   no room constraint · no WBS · no Tausch · furnished OK
+//   München (48.1371, 11.5754) + 50 km · Warmmiete <= 1000 € · >= 35 m²
+//   >= 1.5 Zimmer · no WBS · no Tausch · furnished OK
 // ---------------------------------------------------------------------------
 export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
   new ImmoScoutWatch({
@@ -96,9 +97,9 @@ export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
     maxPages: 2,
     pageSize: 25,
     criteria: {
-      maxKaltmiete: 800,
-      minWohnflaeche: 35,
-      maxWohnflaeche: 70,
+      maxWarmmiete: 1000, // real cap; also the search price cap (kalt <= warm)
+      minWohnflaeche: 35, // no upper size cap (per Zaid)
+      minZimmer: 1.5,
       excludeWBS: true,
       excludeMoebliert: false, // furnished OK (per Zaid)
       excludeTausch: true,

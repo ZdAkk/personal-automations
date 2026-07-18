@@ -35,6 +35,16 @@ export function applyCriteria(e: ImmoScoutExpose, c: ImmoScoutCriteria): FilterR
     return { pass: false, reason: "Tausch offer" };
   }
 
+  // Warmmiete is the primary cap. When it's missing, fall back to Kaltmiete as a
+  // necessary (if weaker) bound, since warm >= kalt.
+  if (c.maxWarmmiete != null) {
+    if (e.warmmiete != null) {
+      if (e.warmmiete > c.maxWarmmiete)
+        return { pass: false, reason: `Warmmiete ${e.warmmiete} > ${c.maxWarmmiete}` };
+    } else if (e.kaltmiete != null && e.kaltmiete > c.maxWarmmiete) {
+      return { pass: false, reason: `Kaltmiete ${e.kaltmiete} > ${c.maxWarmmiete} (warm unbekannt)` };
+    }
+  }
   if (c.maxKaltmiete != null && e.kaltmiete != null && e.kaltmiete > c.maxKaltmiete) {
     return { pass: false, reason: `Kaltmiete ${e.kaltmiete} > ${c.maxKaltmiete}` };
   }

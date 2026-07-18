@@ -93,6 +93,15 @@ export function applyCriteria(
   if (c.maxKaltmiete != null && kalt != null && kalt > c.maxKaltmiete) {
     return { pass: false, reason: `Kaltmiete ${kalt} > ${c.maxKaltmiete}` };
   }
+  // Warmmiete cap. warmmiete() treats missing Nebenkosten as 0, so this is a
+  // LOWER bound on the true warm rent: reject only when even that already
+  // exceeds the cap (lenient on unknown Nebenkosten — you review each anyway).
+  if (c.maxWarmmiete != null) {
+    const warm = warmmiete(d);
+    if (warm != null && warm > c.maxWarmmiete) {
+      return { pass: false, reason: `Warmmiete ${warm} > ${c.maxWarmmiete}` };
+    }
+  }
 
   const flaeche = wohnflaeche(d);
   if (c.minWohnflaeche != null) {

@@ -16,6 +16,10 @@
 // ============================================================================
 
 export interface WohnungCriteria {
+  /** Max Warmmiete (€) = Kaltmiete + Nebenkosten. The primary rent cap, checked
+   *  on the detail. When Nebenkosten are unknown it's treated leniently (the
+   *  listing passes and you review it), since nothing is sent automatically. */
+  maxWarmmiete?: number;
   /** Max Kaltmiete (€). Coarse-applied on the search price AND re-checked on detail. */
   maxKaltmiete?: number;
   /** Min / max living area (m²), from detail "Wohnfläche". */
@@ -103,8 +107,9 @@ export class WohnungWatch {
 
 // ---------------------------------------------------------------------------
 // Zaid's live search (from his Kleinanzeigen filter panel):
-//   Mietwohnungen · Angebote · München + 50 km · Kaltmiete <= 800 €
-//   Wohnfläche 35–70 m² · no room constraint · no Tausch · no WBS · not furnished
+//   Mietwohnungen · Angebote · München + 50 km · Warmmiete <= 1000 €
+//   Wohnfläche >= 35 m² · >= 1.5 Zimmer (lenient when unknown) · no Tausch ·
+//   no WBS · furnished OK
 // ---------------------------------------------------------------------------
 export const WOHNUNG_WATCHES: WohnungWatch[] = [
   new WohnungWatch({
@@ -117,10 +122,10 @@ export const WOHNUNG_WATCHES: WohnungWatch[] = [
     // radius; new central ads land on early pages, dedup handles re-fetches.
     maxPages: 10,
     criteria: {
-      maxKaltmiete: 800,
-      minWohnflaeche: 35,
-      maxWohnflaeche: 70,
-      // rooms: no constraint (per Zaid)
+      maxWarmmiete: 1000, // primary cap (kalt + Nebenkosten)
+      maxKaltmiete: 1000, // coarse cap on the search price (kalt <= warm)
+      minWohnflaeche: 35, // no upper size cap (per Zaid)
+      minZimmer: 1.5, // only rejects when the ad states rooms (KA data is patchy)
       excludeTausch: true,
       excludeWBS: true,
       excludeMoebliert: false, // furnished is OK (per Zaid)
