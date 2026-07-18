@@ -55,6 +55,7 @@ async function runSearch(watch: WohnungWatch): Promise<KleinanzeigenListing[]> {
     offersOnly: watch.offersOnly,
     location: watch.location,
     radius: watch.radius,
+    sortByDate: true, // newest-first so 1 page/poll catches all new ads (not the closest)
   });
   logger.info("🔍 Stage 1 search", { watch: watch.id, url, maxPages: watch.maxPages });
 

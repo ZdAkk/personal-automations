@@ -129,6 +129,11 @@ export interface CategoryUrlOptions {
   max_price?: number;
   location?: string; // postal code, e.g. "10178"
   radius?: number; // km around the postal code
+  // Sort newest-first via ?sortingField=SORTING_DATE. Without it a located
+  // search sorts by DISTANCE, so new far-out ads never reach page 1. With it,
+  // page 1 is the newest ads across the whole radius (and published_at is
+  // populated), so a single page per poll catches everything new.
+  sortByDate?: boolean;
 }
 
 // Build a Kleinanzeigen category search URL, e.g.
@@ -171,6 +176,7 @@ export function buildCategoryUrl(opts: CategoryUrlOptions): string {
   const query = new URLSearchParams();
   if (opts.location) query.set("locationStr", opts.location);
   if (opts.radius != null) query.set("radius", String(opts.radius));
+  if (opts.sortByDate) query.set("sortingField", "SORTING_DATE");
   const qs = query.toString();
   if (qs) url += `?${qs}`;
 

@@ -118,10 +118,10 @@ export const WOHNUNG_WATCHES: WohnungWatch[] = [
     description: "Mietwohnung, München + 50 km",
     location: "80331", // München Altstadt — distance reference point
     radius: 50,
-    // One page (~25 listings) per poll: a 10-page headless scrape exceeds
-    // Cloudflare's ~100s proxy cap and wedges the scraper, and the 15-min
-    // cadence keeps things current. NOTE: this search sorts by distance, so a
-    // new ad farther out may not land on page 1 (see date-sort follow-up).
+    // One page (~25 newest ads) per poll. The search is date-sorted (sortByDate
+    // in the trigger), so page 1 is the newest across the whole radius, not the
+    // closest; with the 15-min cadence one page catches everything new and stays
+    // well under Cloudflare's ~100s proxy cap on the scraper.
     maxPages: 1,
     criteria: {
       maxWarmmiete: 1000, // primary cap (kalt + Nebenkosten)
