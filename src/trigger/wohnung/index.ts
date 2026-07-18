@@ -102,7 +102,7 @@ async function runSearch(watch: WohnungWatch): Promise<KleinanzeigenListing[]> {
 export const processListing = task({
   id: "wohnung-process",
   queue: { concurrencyLimit: 4 },
-  retry: { maxAttempts: 3 },
+  retry: { maxAttempts: 2 }, // scraper is fragile; one retry, not three
   run: async (payload: { candidate: KleinanzeigenListing; context: ProcessContext }): Promise<ProcessResult> => {
     const { candidate, context } = payload;
     const window = context.window;
@@ -183,7 +183,9 @@ export const processListing = task({
 
 export const wohnungWatch = task({
   id: "wohnung-watch",
-  retry: { maxAttempts: 3 },
+  // No retry: a failed search (usually the scraper being slow/wedged) shouldn't
+  // hammer it 3x — the next 15-min poll is the retry.
+  retry: { maxAttempts: 1 },
   run: async (payload: { watch: WohnungWatch; window: string }) => {
     const { watch, window } = payload;
     logger.info(`🏠 Watch "${watch.id}" starting`, {

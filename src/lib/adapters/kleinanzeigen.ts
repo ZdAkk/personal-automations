@@ -1,5 +1,11 @@
 const BASE_URL = process.env.KLEINANZEIGEN_API_URL ?? "http://192.168.178.40:8001";
 
+// Client-side timeout for scraper calls. The scraper drives a headless browser
+// per request; behind Cloudflare (a ~100s proxy cap) a hung scrape returns a
+// 524, so we abort a little earlier with a clean error instead of waiting on
+// the proxy (and blocking the task) for the full timeout.
+const REQUEST_TIMEOUT_MS = Number(process.env.KLEINANZEIGEN_TIMEOUT_MS ?? 90_000);
+
 function headers(): Record<string, string> {
   const token = process.env.KLEINANZEIGEN_API_TOKEN;
   if (!token) throw new Error("KLEINANZEIGEN_API_TOKEN is not set");
@@ -72,7 +78,10 @@ export async function searchListings(params: SearchParams): Promise<Kleinanzeige
   if (params.max_price != null) url.searchParams.set("max_price", String(params.max_price));
   if (params.min_publish_date != null) url.searchParams.set("min_publish_date", params.min_publish_date);
 
-  const response = await fetch(url.toString(), { headers: headers() });
+  const response = await fetch(url.toString(), {
+    headers: headers(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
   }
@@ -101,6 +110,7 @@ export async function searchByUrl(params: SearchByUrlParams): Promise<Kleinanzei
       max_pages: params.max_pages ?? 1,
       min_publish_date: params.min_publish_date ?? null,
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
@@ -177,7 +187,10 @@ export function parseDistanceKm(location: string | null): number | null {
 }
 
 export async function getListingDetail(id: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`${BASE_URL}/inserat/${id}`, { headers: headers() });
+  const response = await fetch(`${BASE_URL}/inserat/${id}`, {
+    headers: headers(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Kleinanzeigen API error: ${response.status} ${await response.text()}`);
   }
@@ -197,6 +210,7 @@ export async function fetchDetails(
     method: "POST",
     headers: { ...headers(), "Content-Type": "application/json" },
     body: JSON.stringify({ ids, max_concurrent: maxConcurrent }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Kleinanzeigen batch error: ${response.status} ${await response.text()}`);
