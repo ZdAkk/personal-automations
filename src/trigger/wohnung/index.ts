@@ -1,4 +1,4 @@
-import { task, schedules, logger } from "@trigger.dev/sdk";
+import { task, schedules, logger, idempotencyKeys } from "@trigger.dev/sdk";
 import {
   searchByUrl,
   buildCategoryUrl,
@@ -218,11 +218,20 @@ export const wohnungWatch = task({
       window,
     };
 
-    // idempotencyKey = adid (GLOBAL, 30d TTL): each ad is detailed+decided once.
-    const items = unique.map((candidate) => ({
-      payload: { candidate, context },
-      options: { idempotencyKey: candidate.adid, idempotencyKeyTTL: "30d" },
-    }));
+    // idempotencyKey = adid, GLOBAL scope + 30d TTL: each ad is decided exactly
+    // once ACROSS polls, so its cached output keeps its ORIGINAL window and the
+    // watch only emails it the poll it first appeared. The key MUST be global: a
+    // raw string defaults to `run` scope (SDK v4.3.1+), which re-scopes it per
+    // poll and re-emails every match every poll.
+    const items = await Promise.all(
+      unique.map(async (candidate) => ({
+        payload: { candidate, context },
+        options: {
+          idempotencyKey: await idempotencyKeys.create(candidate.adid, { scope: "global" }),
+          idempotencyKeyTTL: "30d",
+        },
+      }))
+    );
     const result = await processListing.batchTriggerAndWait(items);
 
     // NEW this poll iff the run echoes the current window (cached, already-seen

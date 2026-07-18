@@ -1,4 +1,4 @@
-import { task, schedules, logger } from "@trigger.dev/sdk";
+import { task, schedules, logger, idempotencyKeys } from "@trigger.dev/sdk";
 import {
   searchList,
   fetchExpose,
@@ -197,11 +197,20 @@ export const immoscoutWatch = task({
       window,
     };
 
-    // idempotencyKey = expose id (GLOBAL, 30d TTL): each listing is decided once.
-    const items = candidates.map((candidate) => ({
-      payload: { candidate, context },
-      options: { idempotencyKey: candidate.id, idempotencyKeyTTL: "30d" },
-    }));
+    // idempotencyKey = expose id, GLOBAL scope + 30d TTL: each listing is decided
+    // exactly once ACROSS polls, so its cached output keeps its ORIGINAL window
+    // and the watch only emails it the poll it first appeared. The key MUST be
+    // global: a raw string defaults to `run` scope (SDK v4.3.1+), which re-scopes
+    // it per poll and re-emails every match every 15 min.
+    const items = await Promise.all(
+      candidates.map(async (candidate) => ({
+        payload: { candidate, context },
+        options: {
+          idempotencyKey: await idempotencyKeys.create(candidate.id, { scope: "global" }),
+          idempotencyKeyTTL: "30d",
+        },
+      }))
+    );
     const result = await processListing.batchTriggerAndWait(items);
 
     // A run is NEW this poll iff it echoes the current window (a cached, already-
