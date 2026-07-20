@@ -43,7 +43,7 @@ function aboutParagraph(framing: Framing): string {
     "Kurz zu mir: Ich bin 25 Jahre alt, Nichtraucher, ziehe als Einpersonenhaushalt " +
     "ein und habe keine Haustiere. Beruflich bin ich selbstständiger Softwareentwickler " +
     `mit laufenden Kundenprojekten und ${FRAMING_CLAUSE[framing]}. Seit ${APPLICANT.tenantSince} ` +
-    "bin ich durchgehend Mieter in Hannover und suche bewusst eine dauerhafte Bleibe, kein Übergangsobjekt."
+    "bin ich Mieter in Hannover und würde mich freuen, in meinem neuen Zuhause länger zu bleiben."
   );
 }
 
@@ -104,5 +104,5 @@ export function assembleLetter(
 // true, so a listing never goes un-drafted just because the model hiccuped.
 export function fallbackHook(ort: string | null): string {
   const where = ort ? `Ihre Wohnung in ${ort}` : "Ihre Wohnung";
-  return `${where} passt genau zu dem, was ich für einen langfristigen Wohnsitz suche.`;
+  return `${where} gefällt mir und passt gut zu dem, was ich suche.`;
 }
