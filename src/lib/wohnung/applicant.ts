@@ -67,9 +67,9 @@ const MAPPE_LINE =
 
 const LOGISTICS_LINE =
   `Einziehen würde ich gerne zum ${APPLICANT.moveInDate}, nach Vereinbarung auch früher. ` +
-  "Die Fotos in der Anzeige geben mir schon einen guten Eindruck, gerne würde ich mir die " +
-  "Wohnung aber auch in den nächsten zwei Wochen persönlich ansehen, falls sich ein Termin " +
-  "einrichten lässt. " +
+  `Ich wohne derzeit noch in ${APPLICANT.currentCity} und komme für eine Besichtigung ` +
+  "selbstverständlich zu Ihnen, dafür brauche ich lediglich etwa eine Woche Vorlauf. " +
+  "Wenn Sie möchten, können wir die Wohnung vorab auch kurz per Videoanruf anschauen. " +
   `Sie erreichen mich jederzeit unter ${APPLICANT.phone}.`;
 
 /**
