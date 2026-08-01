@@ -113,7 +113,13 @@ export interface RenderedDigest {
 
 /**
  * Render the digest for one run. `source` names the pipeline; `dateLabel` is a
- * human date (e.g. "18.07.2026") shown in the header/subject.
+ * human date+time (e.g. "18.07.2026, 14:30") shown in the header/subject.
+ *
+ * The time matters: two digests from the same source on the same day with the
+ * same match count would otherwise produce a byte-identical subject, which is
+ * one of the things Gmail uses to collapse them into a single conversation
+ * (see threadBreaker() in adapters/email for the actual guarantee). Appended,
+ * not prefixed, so the count stays the first thing read in the inbox.
  */
 export function renderDigest(
   source: DigestItem["source"],

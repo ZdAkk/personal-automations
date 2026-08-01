@@ -20,6 +20,24 @@ export interface SendEmailParams {
   to?: string; // defaults to EMAIL_TO
   from?: string; // defaults to EMAIL_FROM
   replyTo?: string;
+  /** Extra SMTP headers. See `threadBreaker()` for the Gmail-threading use. */
+  headers?: Record<string, string>;
+}
+
+/**
+ * Headers that stop Gmail from collapsing separate sends into one conversation.
+ *
+ * Gmail threads messages that share a sender, a subject and a one-week window
+ * even with no In-Reply-To/References chain, so every digest with the same
+ * count on the same day used to stack into a single thread, hiding the earlier
+ * ones behind the newest subject. `X-Entity-Ref-ID` is the documented Resend /
+ * Gmail lever for opting out: a value that never repeats forces a new thread.
+ *
+ * Deliberately NOT derived from the poll window, which is shared by every watch
+ * in one tick and so would collide across emails.
+ */
+export function threadBreaker(): Record<string, string> {
+  return { "X-Entity-Ref-ID": crypto.randomUUID() };
 }
 
 /**
@@ -42,6 +60,7 @@ export async function sendEmail(p: SendEmailParams): Promise<{ id: string }> {
     html: p.html,
     ...(p.text ? { text: p.text } : {}),
     ...(p.replyTo ? { reply_to: p.replyTo } : {}),
+    ...(p.headers ? { headers: p.headers } : {}),
   });
 
   let lastErr: unknown;

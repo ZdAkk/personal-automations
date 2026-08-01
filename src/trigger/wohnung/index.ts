@@ -9,7 +9,7 @@ import {
   featureList,
   type KleinanzeigenListing,
 } from "../../lib/adapters/kleinanzeigen";
-import { sendEmail } from "../../lib/adapters/email";
+import { sendEmail, threadBreaker } from "../../lib/adapters/email";
 import { renderDigest, type DigestItem } from "../../lib/apartments/digest";
 import { draftFromDetail } from "../../lib/wohnung/draft";
 import { applyCriteria } from "../../lib/wohnung/filter";
@@ -34,10 +34,11 @@ interface ProcessResult {
   reason?: string;
 }
 
-// "2026-07-18T14:30" -> "18.07.2026"
+// "2026-07-18T14:30" -> "18.07.2026, 14:30". The time is kept so two digests
+// from the same day don't share a subject (see renderDigest).
 function dateLabel(window: string): string {
   const [y, m, d] = window.slice(0, 10).split("-");
-  return `${d}.${m}.${y}`;
+  return `${d}.${m}.${y}, ${window.slice(11, 16)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +259,12 @@ export const wohnungWatch = task({
 
     if (newItems.length > 0) {
       const digest = renderDigest("Kleinanzeigen", newItems, dateLabel(window));
-      await sendEmail({ subject: digest.subject, html: digest.html, text: digest.text });
+      await sendEmail({
+        subject: digest.subject,
+        html: digest.html,
+        text: digest.text,
+        headers: threadBreaker(), // each digest is its own Gmail conversation
+      });
       logger.info(`📧 Emailed ${newItems.length} new listing(s): ${digest.subject}`, {
         watch: watch.id,
         ids: newItems.map((i) => i.id),
