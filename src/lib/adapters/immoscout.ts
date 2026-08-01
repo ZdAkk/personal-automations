@@ -132,6 +132,16 @@ export interface ImmoScoutExpose {
   internetSpeed: string | null;
   /** Objektzustand, e.g. "Neuwertig" / "Gepflegt" / "Renoviert". */
   condition: string | null;
+  /**
+   * APPROXIMATE location, from the centroid of the listing's postcode outline.
+   * Exposes don't carry exact coordinates (sellers hide the street address), so
+   * this is the only positional signal available when there's no search result
+   * to take lat/lon from — which is the case for a hand-pasted URL. Accurate to
+   * roughly a postcode's radius, which is plenty for a distance badge.
+   * Null when the payload has no outline.
+   */
+  lat: number | null;
+  lon: number | null;
   isPrivate: boolean;
   notFound?: boolean;
 }
@@ -166,6 +176,21 @@ function mainImageUrl(sections: any[]): string | null {
   const raw: string | null = pic?.previewImageUrl ?? pic?.fullImageUrl ?? null;
   if (!raw) return null;
   return raw.replace("/format/webp/", "/format/jpg/");
+}
+
+// Approximate coordinates from the MAP section's postcode outline. Exposes
+// carry no exact lat/lon, but they do ship the polygon of the postcode area;
+// its centroid is close enough to compute a distance badge from.
+function approxCoords(sections: any[]): { lat: number | null; lon: number | null } {
+  const outline: any[] =
+    sections.find((s) => s.type === "MAP")?.zipCodeShapes?.[0]?.outline ?? [];
+  const pts = outline.filter(
+    (p) => typeof p?.lat === "number" && typeof (p?.lon ?? p?.lng) === "number"
+  );
+  if (pts.length === 0) return { lat: null, lon: null };
+  const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+  const lon = pts.reduce((s, p) => s + (p.lon ?? p.lng), 0) / pts.length;
+  return { lat, lon };
 }
 
 // Pull a labelled value out of an ATTRIBUTE_LIST section (label→text).
@@ -246,6 +271,7 @@ export async function fetchExpose(id: string): Promise<ImmoScoutExpose | null> {
       ? (atp.obj_telekomInternetSpeed ?? null)
       : null,
     condition: attr(sections, "Bausubstanz & Energieausweis", "Objektzustand"),
+    ...approxCoords(sections),
     isPrivate: yes(atp.obj_privateOffer),
   };
 }
@@ -272,6 +298,8 @@ function emptyExpose(id: string): ImmoScoutExpose {
     imageUrl: null,
     internetSpeed: null,
     condition: null,
+    lat: null,
+    lon: null,
     isPrivate: false,
   };
 }
