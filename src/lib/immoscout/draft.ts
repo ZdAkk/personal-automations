@@ -9,9 +9,10 @@ import { personalizedHook } from "../apartments/hook";
 import { haversineKm } from "../apartments/text";
 import { assembleLetter, fallbackHook, type Framing } from "../wohnung/applicant";
 import type { ImmoScoutExpose } from "../adapters/immoscout";
+import { SEARCH, CHANNELS } from "../../config/profile";
 
-// München centre — distance reference for framing.
-const MUC = { lat: 48.1371, lon: 11.5754 };
+// Search-centre coordinates come from the shared profile (one definition).
+const MUC = { lat: SEARCH.city.lat, lon: SEARCH.city.lon };
 
 export interface FramingRules {
   lmuMaxKm: number;
@@ -81,10 +82,10 @@ export async function draftFromExpose(
 
   const body = assembleLetter(hook, framing, {
     salutation: salutation(e.contactName),
-    closing: "Mit freundlichen Grüßen",
+    closing: CHANNELS.immoscout.closing,
     // On ImmoScout the Bewerbermappe PDF is attached to the message, so offering
     // to send it would be redundant. Kleinanzeigen keeps the offer.
-    includeMappeLine: false,
+    includeMappeLine: CHANNELS.immoscout.includeMappeLine,
   });
 
   return {

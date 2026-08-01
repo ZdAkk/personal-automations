@@ -14,6 +14,7 @@ import { renderDigest, type DigestItem } from "../../lib/apartments/digest";
 import { draftFromDetail } from "../../lib/wohnung/draft";
 import { applyCriteria } from "../../lib/wohnung/filter";
 import { WOHNUNG_WATCHES, WohnungWatch, type WohnungCriteria } from "../../config/wohnung-watches";
+import { OPERATIONS } from "../../config/profile";
 
 // Context lifted off the watch so we don't ship the whole watch on every
 // per-listing trigger.
@@ -103,7 +104,7 @@ async function runSearch(watch: WohnungWatch): Promise<KleinanzeigenListing[]> {
 
 export const processListing = task({
   id: "wohnung-process",
-  queue: { concurrencyLimit: 4 },
+  queue: { concurrencyLimit: OPERATIONS.concurrency },
   retry: { maxAttempts: 2 }, // scraper is fragile; one retry, not three
   run: async (payload: { candidate: KleinanzeigenListing; context: ProcessContext }): Promise<ProcessResult> => {
     const { candidate, context } = payload;
@@ -229,7 +230,7 @@ export const wohnungWatch = task({
         payload: { candidate, context },
         options: {
           idempotencyKey: await idempotencyKeys.create(candidate.adid, { scope: "global" }),
-          idempotencyKeyTTL: "30d",
+          idempotencyKeyTTL: OPERATIONS.seenTtl,
         },
       }))
     );
@@ -287,7 +288,7 @@ export const wohnungWatch = task({
 
 export const wohnungPoller = schedules.task({
   id: "wohnung-poller",
-  cron: "*/15 * * * *",
+  cron: OPERATIONS.cron.kleinanzeigen,
   run: async (payload) => {
     const window = payload.timestamp.toISOString().slice(0, 16);
     logger.info(`⏰ Wohnung poller tick @ ${window}`, { watches: WOHNUNG_WATCHES.length });

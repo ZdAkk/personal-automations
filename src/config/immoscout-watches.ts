@@ -8,6 +8,8 @@
 // trigger.
 // ============================================================================
 
+import { SEARCH, SOURCES, radiusFor } from "./profile";
+
 export interface ImmoScoutCriteria {
   maxWarmmiete?: number; // €, the primary rent cap; also used as the search price cap
   maxKaltmiete?: number; // €, optional extra cap on base rent
@@ -72,44 +74,34 @@ export class ImmoScoutWatch {
 }
 
 // ---------------------------------------------------------------------------
-// Zaid's live search — same criteria as the Kleinanzeigen wohnung watch:
-//   München (48.1371, 11.5754) + 65 km · Warmmiete <= 1000 € · >= 35 m²
-//   >= 1.5 Zimmer · no WBS · no Tausch · furnished OK
-//
-// 65 km (not 50) because the affordable stock sits outside the city: at 50 km
-// the search matched 844 listings, at 65 km it matches 1266. Anything past
-// framing.warnMaxKm still arrives flagged "weiter entfernt".
+// Derived from src/config/profile.ts — EDIT THAT FILE, not this one.
+// The search centre, radius, price cap and filters all come from the shared
+// profile so this watch can't silently drift from the Kleinanzeigen one.
 // ---------------------------------------------------------------------------
+const c = SEARCH.criteria;
+
 export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
   new ImmoScoutWatch({
     id: "muenchen",
-    title: "IS24 München",
-    description: "ImmoScout24 Mietwohnung, München + 65 km",
-    lat: 48.1371,
-    lon: 11.5754,
-    radiusKm: 65,
-    // Newest-first search, so page 1 (~25) covers new listings between polls.
-    maxPages: 2,
-    pageSize: 25,
+    title: `IS24 ${SEARCH.city.name}`,
+    description: `ImmoScout24 Mietwohnung, ${SEARCH.city.name} + ${radiusFor("immoscout")} km`,
+    lat: SEARCH.city.lat,
+    lon: SEARCH.city.lon,
+    radiusKm: radiusFor("immoscout"),
+    maxPages: SOURCES.immoscout.maxPages,
+    pageSize: SOURCES.immoscout.pageSize,
     criteria: {
-      maxWarmmiete: 1000, // real cap; also the search price cap (kalt <= warm)
-      minWohnflaeche: 35, // no upper size cap (per Zaid)
-      minZimmer: 1.5,
-      excludeWBS: true,
-      excludeMoebliert: false, // furnished OK (per Zaid)
-      excludeTausch: true,
-      // Coarse title reject. Mirrors the Kleinanzeigen watch: a shared room or a
-      // sublet isn't what's wanted, and IS24 does list WG rooms as apartments.
-      excludeKeywords: [
-        "wohnberechtigungsschein",
-        "wbs ",
-        "wohngemeinschaft",
-        "wg zimmer",
-        "wg-zimmer",
-        "zwischenmiete",
-        "untermiete",
-      ],
+      maxWarmmiete: c.maxWarmmiete, // real cap; also the search price cap (kalt <= warm)
+      minWohnflaeche: c.minWohnflaeche,
+      maxWohnflaeche: c.maxWohnflaeche ?? undefined,
+      minZimmer: c.minZimmer,
+      maxZimmer: c.maxZimmer ?? undefined,
+      maxKaution: c.maxKaution ?? undefined,
+      excludeWBS: c.excludeWBS,
+      excludeMoebliert: c.excludeMoebliert,
+      excludeTausch: c.excludeTausch,
+      excludeKeywords: [...SOURCES.immoscout.excludeKeywords],
     },
-    framing: { lmuMaxKm: 45, warnMaxKm: 50 },
+    framing: { ...SEARCH.framing },
   }),
 ];

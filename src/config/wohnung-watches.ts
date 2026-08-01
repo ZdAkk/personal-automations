@@ -15,6 +15,8 @@
 // thresholds, notification topic.
 // ============================================================================
 
+import { SEARCH, SOURCES, radiusFor } from "./profile";
+
 export interface WohnungCriteria {
   /** Max Warmmiete (€) = Kaltmiete + Nebenkosten. The primary rent cap, checked
    *  on the detail. When Nebenkosten are unknown it's treated leniently (the
@@ -97,49 +99,34 @@ export class WohnungWatch {
 }
 
 // ---------------------------------------------------------------------------
-// Zaid's live search (from his Kleinanzeigen filter panel):
-//   Mietwohnungen · Angebote · München + 65 km · Warmmiete <= 1000 €
-//   Wohnfläche >= 35 m² · >= 1.5 Zimmer (lenient when unknown) · no Tausch ·
-//   no WBS · furnished OK
-//
-// 65 km (not 50) to match the ImmoScout watch: the affordable stock is outside
-// the city. Kleinanzeigen accepts the non-preset radius (verified: results come
-// back out to 64 km). Anything past framing.warnMaxKm is flagged "weiter entfernt".
+// Derived from src/config/profile.ts — EDIT THAT FILE, not this one.
+// Kleinanzeigen centres on a postal code rather than lat/lon, and the search is
+// date-sorted (sortByDate in the trigger), so one page per poll is the newest
+// ads across the whole radius and stays well under Cloudflare's ~100s cap.
 // ---------------------------------------------------------------------------
+const c = SEARCH.criteria;
+
 export const WOHNUNG_WATCHES: WohnungWatch[] = [
   new WohnungWatch({
     id: "muenchen",
-    title: "Wohnung München",
-    description: "Mietwohnung, München + 65 km",
-    location: "80331", // München Altstadt — distance reference point
-    radius: 65,
-    // One page (~25 newest ads) per poll. The search is date-sorted (sortByDate
-    // in the trigger), so page 1 is the newest across the whole radius, not the
-    // closest; with the 15-min cadence one page catches everything new and stays
-    // well under Cloudflare's ~100s proxy cap on the scraper.
-    maxPages: 1,
+    title: `Wohnung ${SEARCH.city.name}`,
+    description: `Mietwohnung, ${SEARCH.city.name} + ${radiusFor("kleinanzeigen")} km`,
+    location: SEARCH.city.zip, // distance reference point
+    radius: radiusFor("kleinanzeigen"),
+    maxPages: SOURCES.kleinanzeigen.maxPages,
     criteria: {
-      maxWarmmiete: 1000, // primary cap (kalt + Nebenkosten)
-      maxKaltmiete: 1000, // coarse cap on the search price (kalt <= warm)
-      minWohnflaeche: 35, // no upper size cap (per Zaid)
-      minZimmer: 1.5, // only rejects when the ad states rooms (KA data is patchy)
-      excludeTausch: true,
-      excludeWBS: true,
-      excludeMoebliert: false, // furnished is OK (per Zaid)
-      // Coarse pre-filter on the search title+description (reduces detail
-      // fetches). Kept to UNAMBIGUOUS tokens only: the search matcher strips
-      // spaces/umlauts and does substring matching, so short/negatable tokens
-      // (wbs, möbliert, tausch, befristet) would false-reject "kein WBS" /
-      // "unmöbliert" / "unbefristet". Those are handled precisely in the
-      // stage-2 fine filter instead.
-      excludeKeywords: [
-        "wohnberechtigungsschein",
-        "zwischenmiete",
-        "zwischenmieter",
-        "untermiete",
-        "wohngemeinschaft",
-      ],
+      maxWarmmiete: c.maxWarmmiete, // primary cap (kalt + Nebenkosten)
+      maxKaltmiete: c.maxWarmmiete, // coarse cap on the search price (kalt <= warm)
+      minWohnflaeche: c.minWohnflaeche,
+      maxWohnflaeche: c.maxWohnflaeche ?? undefined,
+      minZimmer: c.minZimmer, // only rejects when the ad states rooms (KA data is patchy)
+      maxZimmer: c.maxZimmer ?? undefined,
+      maxKaution: c.maxKaution ?? undefined,
+      excludeTausch: c.excludeTausch,
+      excludeWBS: c.excludeWBS,
+      excludeMoebliert: c.excludeMoebliert,
+      excludeKeywords: [...SOURCES.kleinanzeigen.excludeKeywords],
     },
-    framing: { lmuMaxKm: 45, warnMaxKm: 50 },
+    framing: { ...SEARCH.framing },
   }),
 ];

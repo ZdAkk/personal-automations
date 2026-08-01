@@ -13,6 +13,7 @@ import {
   ImmoScoutWatch,
   type ImmoScoutCriteria,
 } from "../../config/immoscout-watches";
+import { OPERATIONS } from "../../config/profile";
 
 interface ProcessContext {
   title: string;
@@ -95,7 +96,7 @@ async function runSearch(watch: ImmoScoutWatch): Promise<ImmoScoutSearchItem[]> 
 
 export const processListing = task({
   id: "immoscout-process",
-  queue: { concurrencyLimit: 4 },
+  queue: { concurrencyLimit: OPERATIONS.concurrency },
   retry: { maxAttempts: 3 },
   run: async (payload: { candidate: ImmoScoutSearchItem; context: ProcessContext }): Promise<ProcessResult> => {
     const { candidate, context } = payload;
@@ -208,7 +209,7 @@ export const immoscoutWatch = task({
         payload: { candidate, context },
         options: {
           idempotencyKey: await idempotencyKeys.create(candidate.id, { scope: "global" }),
-          idempotencyKeyTTL: "30d",
+          idempotencyKeyTTL: OPERATIONS.seenTtl,
         },
       }))
     );
@@ -266,7 +267,7 @@ export const immoscoutWatch = task({
 
 export const immoscoutPoller = schedules.task({
   id: "immoscout-poller",
-  cron: "*/15 * * * *",
+  cron: OPERATIONS.cron.immoscout,
   run: async (payload) => {
     const window = payload.timestamp.toISOString().slice(0, 16);
     logger.info(`⏰ ImmoScout poller tick @ ${window}`, { watches: IMMOSCOUT_WATCHES.length });
