@@ -13,6 +13,12 @@ const BASE = process.env.IMMOSCOUT_API_URL ?? "https://api.mobile.immobilienscou
 // an "empty results" alarm). Overridable without a code change.
 const USER_AGENT = process.env.IMMOSCOUT_USER_AGENT ?? "ImmoScout_27.12_26.2_._";
 
+// Client-side ceiling for the mobile API. These are plain JSON calls that
+// normally answer in well under a second, but with no signal a stalled socket
+// would hang the caller indefinitely (fine-ish in cron, fatal in a request
+// handler), so fail fast instead.
+const REQUEST_TIMEOUT_MS = Number(process.env.IMMOSCOUT_TIMEOUT_MS ?? 20_000);
+
 function headers(): Record<string, string> {
   return { "User-Agent": USER_AGENT, Accept: "application/json" };
 }
@@ -72,6 +78,7 @@ export async function searchList(
     method: "POST",
     headers: { ...headers(), "Content-Type": "application/json" },
     body: JSON.stringify({ supportedResultListType: [], userData: {} }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`ImmoScout search error: ${res.status} ${await res.text()}`);
@@ -171,7 +178,12 @@ function attr(sections: any[], listTitle: string, labelIncludes: string): string
 }
 
 export async function fetchExpose(id: string): Promise<ImmoScoutExpose | null> {
-  const res = await fetch(`${BASE}/expose/${id}`, { headers: headers() });
+  // `id` is interpolated into the upstream path, so it must be digits only.
+  if (!/^\d+$/.test(id)) throw new Error(`ImmoScout expose id must be numeric, got: ${id}`);
+  const res = await fetch(`${BASE}/expose/${id}`, {
+    headers: headers(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   if (res.status === 404 || res.status === 410) return { ...emptyExpose(id), notFound: true };
   if (!res.ok) {
     throw new Error(`ImmoScout expose error: ${res.status} ${await res.text()}`);

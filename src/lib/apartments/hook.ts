@@ -109,7 +109,10 @@ export async function personalizedHook(
                 },
               ]),
         ],
-        chosenModel
+        chosenModel,
+        // One short sentence: if it hasn't answered in 45s it isn't going to,
+        // and the deterministic fallback is a fine outcome.
+        { timeoutMs: 45_000 }
       );
       const line = out.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
       const cleaned = line.replace(/^["'»]|["'«]$/g, "").trim();
