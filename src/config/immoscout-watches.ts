@@ -91,10 +91,10 @@ export const IMMOSCOUT_WATCHES: ImmoScoutWatch[] = [
     maxPages: SOURCES.immoscout.maxPages,
     pageSize: SOURCES.immoscout.pageSize,
     criteria: {
-      maxWarmmiete: c.maxWarmmiete, // real cap; also the search price cap (kalt <= warm)
-      minWohnflaeche: c.minWohnflaeche,
+      maxWarmmiete: c.maxWarmmiete ?? undefined, // real cap; also the search price cap (kalt <= warm)
+      minWohnflaeche: c.minWohnflaeche ?? undefined,
       maxWohnflaeche: c.maxWohnflaeche ?? undefined,
-      minZimmer: c.minZimmer,
+      minZimmer: c.minZimmer ?? undefined,
       maxZimmer: c.maxZimmer ?? undefined,
       maxKaution: c.maxKaution ?? undefined,
       excludeWBS: c.excludeWBS,

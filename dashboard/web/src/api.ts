@@ -1,8 +1,42 @@
-import type { DraftEvent, ProfileDto } from "../../shared/api";
+import type {
+  DraftEvent,
+  DraftResultDto,
+  ProfileMeta,
+  ProfileValues,
+} from "../../shared/api";
 
-export async function fetchProfile(): Promise<ProfileDto> {
+export async function fetchProfile(): Promise<ProfileValues> {
   const res = await fetch("/api/profile");
   if (!res.ok) throw new Error(`profile: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProfileMeta(): Promise<ProfileMeta> {
+  const res = await fetch("/api/profile/meta");
+  if (!res.ok) throw new Error(`profile meta: ${res.status}`);
+  return res.json();
+}
+
+export async function saveProfile(values: ProfileValues): Promise<void> {
+  const res = await fetch("/api/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `save failed: ${res.status}`);
+  }
+}
+
+/** Re-draft one listing at a different interest score. */
+export async function draftOne(url: string, interest: number): Promise<DraftResultDto> {
+  const res = await fetch("/api/draft-one", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, interest }),
+  });
+  if (!res.ok) throw new Error(`draft-one: ${res.status}`);
   return res.json();
 }
 
@@ -15,6 +49,7 @@ export async function fetchProfile(): Promise<ProfileDto> {
  */
 export function streamDraft(
   urls: string,
+  interest: number,
   onEvent: (e: DraftEvent) => void
 ): { done: Promise<void>; abort: () => void } {
   const controller = new AbortController();
@@ -23,7 +58,7 @@ export function streamDraft(
     const res = await fetch("/api/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ urls }),
+      body: JSON.stringify({ urls, interest }),
       signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error(`draft: ${res.status}`);

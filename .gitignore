@@ -6,3 +6,4 @@ node_modules
 # Dashboard build output + its local secrets
 dashboard/web/dist/
 dashboard/.env
+dashboard/_srv.log

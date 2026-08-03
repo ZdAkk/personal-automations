@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
-import type { DraftResultDto } from "../../../shared/api";
-import { copyText } from "../api";
+import type { DraftResultDto, ProfileValues } from "../../../shared/api";
+import { copyText, draftOne } from "../api";
+
+type Tier = ProfileValues["situation"]["interest"]["tiers"][number];
 
 const eur = (n: number | null | undefined): string | null =>
   n == null ? null : `${Math.round(n)} €`;
@@ -20,9 +22,39 @@ function facts(l: NonNullable<DraftResultDto["listing"]>): string {
 
 type CopyState = "idle" | "copied" | "selected";
 
-export function ResultCard({ result }: { result: DraftResultDto }) {
+export function ResultCard({
+  result,
+  tiers,
+  onRedraft,
+}: {
+  result: DraftResultDto;
+  tiers: Tier[];
+  onRedraft: (r: DraftResultDto) => void;
+}) {
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [interest, setInterest] = useState(result.interest);
+  const [redrafting, setRedrafting] = useState(false);
   const letterRef = useRef<HTMLPreElement>(null);
+
+  const tierLabel = (score: number): string => {
+    let label = "";
+    for (const t of [...tiers].sort((a, b) => a.from - b.from)) if (score >= t.from) label = t.label;
+    return label;
+  };
+
+  // Re-write this one letter at a new interest level. Only fires on release,
+  // not while dragging, so a slider sweep doesn't queue ten LLM calls.
+  async function commitInterest(next: number): Promise<void> {
+    if (next === result.interest || redrafting) return;
+    setRedrafting(true);
+    try {
+      onRedraft(await draftOne(result.url, next));
+    } catch {
+      setInterest(result.interest);
+    } finally {
+      setRedrafting(false);
+    }
+  }
 
   async function onCopy(): Promise<void> {
     if (!result.listing) return;
@@ -94,6 +126,26 @@ export function ResultCard({ result }: { result: DraftResultDto }) {
         <h3 className="card__title">{l.title}</h3>
         <p className="card__facts">{facts(l)}</p>
         {l.contactName && <p className="card__contact">Kontakt: {l.contactName}</p>}
+
+        <div className="card__interest">
+          <label className="card__interestLabel">
+            Interesse <strong>{interest}</strong>
+            {tierLabel(interest) && <em> · {tierLabel(interest)}</em>}
+          </label>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            step={1}
+            value={interest}
+            disabled={redrafting}
+            onChange={(e) => setInterest(Number(e.target.value))}
+            onMouseUp={(e) => void commitInterest(Number((e.target as HTMLInputElement).value))}
+            onTouchEnd={(e) => void commitInterest(Number((e.target as HTMLInputElement).value))}
+            onKeyUp={(e) => void commitInterest(Number((e.target as HTMLInputElement).value))}
+          />
+          {redrafting && <span className="spinner spinner--sm" aria-label="wird neu geschrieben" />}
+        </div>
 
         <div className="card__actions">
           <button className="btn btn--primary" onClick={onCopy} type="button">

@@ -15,7 +15,7 @@ import { fetchDetails } from "../adapters/kleinanzeigen";
 import { draftFromExpose } from "../immoscout/draft";
 import { draftFromDetail } from "../wohnung/draft";
 import { kaltmiete, warmmiete, wohnflaeche, zimmer } from "../wohnung/filter";
-import { SEARCH, CHANNELS } from "../../config/profile";
+import { SEARCH, CHANNELS, ensureFreshProfile } from "../../config/profile";
 import type { DigestItem } from "./digest";
 import type { ParsedListing } from "./url";
 
@@ -50,7 +50,13 @@ function criteriaNotes(item: DigestItem): string[] {
   return notes;
 }
 
-export async function draftListing(listing: ParsedListing): Promise<DraftedListing> {
+export async function draftListing(
+  listing: ParsedListing,
+  /** How much you want THIS flat, 1..10. Higher makes the letter more
+   *  accommodating; see the interest tiers in config/profile.json. */
+  interest?: number
+): Promise<DraftedListing> {
+  ensureFreshProfile();
   const base = { source: listing.source, id: listing.id, url: listing.url };
   try {
     if (listing.source === "ImmoScout24") {
@@ -59,7 +65,9 @@ export async function draftListing(listing: ParsedListing): Promise<DraftedListi
 
       // Coordinates are approximate (postcode centroid) — see the adapter — but
       // good enough for the distance badge and the framing decision.
-      const draft = await draftFromExpose(e, { lat: e.lat, lon: e.lon }, SEARCH.framing);
+      const draft = await draftFromExpose(e, { lat: e.lat, lon: e.lon }, SEARCH.framing, {
+        interest,
+      });
       const item: DigestItem = {
         source: "ImmoScout24",
         id: listing.id,
@@ -87,7 +95,7 @@ export async function draftListing(listing: ParsedListing): Promise<DraftedListi
     // KleinanzeigenDetail carries no coordinates and the "(N km)" annotation only
     // exists on search results, so distance is unavailable here; framing falls
     // back to the postcode test, which is correct for the München case.
-    const draft = await draftFromDetail(d, null, SEARCH.framing);
+    const draft = await draftFromDetail(d, null, SEARCH.framing, { interest });
     const item: DigestItem = {
       source: "Kleinanzeigen",
       id: listing.id,
@@ -116,7 +124,13 @@ export async function draftListing(listing: ParsedListing): Promise<DraftedListi
  */
 export async function draftListings(
   listings: ParsedListing[],
-  opts: { concurrency?: number; onDone?: (r: DraftedListing) => void } = {}
+  opts: {
+    concurrency?: number;
+    onDone?: (r: DraftedListing) => void;
+    /** Applied to every listing in the batch. Per-listing overrides happen by
+     *  re-drafting one listing from the UI. */
+    interest?: number;
+  } = {}
 ): Promise<DraftedListing[]> {
   const limit = opts.concurrency ?? 3;
   const results: DraftedListing[] = new Array(listings.length);
@@ -126,7 +140,7 @@ export async function draftListings(
     while (true) {
       const i = next++;
       if (i >= listings.length) return;
-      const r = await draftListing(listings[i]);
+      const r = await draftListing(listings[i], opts.interest);
       results[i] = r;
       opts.onDone?.(r);
     }

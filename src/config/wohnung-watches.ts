@@ -115,11 +115,11 @@ export const WOHNUNG_WATCHES: WohnungWatch[] = [
     radius: radiusFor("kleinanzeigen"),
     maxPages: SOURCES.kleinanzeigen.maxPages,
     criteria: {
-      maxWarmmiete: c.maxWarmmiete, // primary cap (kalt + Nebenkosten)
-      maxKaltmiete: c.maxWarmmiete, // coarse cap on the search price (kalt <= warm)
-      minWohnflaeche: c.minWohnflaeche,
+      maxWarmmiete: c.maxWarmmiete ?? undefined, // primary cap (kalt + Nebenkosten)
+      maxKaltmiete: c.maxWarmmiete ?? undefined, // coarse cap on the search price (kalt <= warm)
+      minWohnflaeche: c.minWohnflaeche ?? undefined,
       maxWohnflaeche: c.maxWohnflaeche ?? undefined,
-      minZimmer: c.minZimmer, // only rejects when the ad states rooms (KA data is patchy)
+      minZimmer: c.minZimmer ?? undefined, // only rejects when the ad states rooms (KA data is patchy)
       maxZimmer: c.maxZimmer ?? undefined,
       maxKaution: c.maxKaution ?? undefined,
       excludeTausch: c.excludeTausch,

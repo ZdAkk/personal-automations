@@ -9,7 +9,7 @@ import { personalizedHook } from "../apartments/hook";
 import { haversineKm } from "../apartments/text";
 import { assembleLetter, fallbackHook, type Framing } from "../wohnung/applicant";
 import type { ImmoScoutExpose } from "../adapters/immoscout";
-import { SEARCH, CHANNELS } from "../../config/profile";
+import { SEARCH, CHANNELS, interestTier } from "../../config/profile";
 
 // Search-centre coordinates come from the shared profile (one definition).
 const MUC = { lat: SEARCH.city.lat, lon: SEARCH.city.lon };
@@ -51,8 +51,11 @@ export async function draftFromExpose(
   e: ImmoScoutExpose,
   coords: { lat: number | null; lon: number | null },
   rules: FramingRules,
-  model?: string
+  /** `interest` (1..10) shapes the hook's tone and adds flexibility sentences. */
+  opts: { model?: string; interest?: number } = {}
 ): Promise<DraftResult> {
+  const { model, interest } = opts;
+  const tier = interestTier(interest);
   const distanceKm =
     coords.lat != null && coords.lon != null
       ? Math.round(haversineKm(MUC.lat, MUC.lon, coords.lat, coords.lon))
@@ -77,7 +80,8 @@ export async function draftFromExpose(
       condition: e.condition,
     },
     fallbackHook(stadtteil),
-    model
+    model,
+    tier.tone
   );
 
   const body = assembleLetter(hook, framing, {
@@ -86,6 +90,7 @@ export async function draftFromExpose(
     // On ImmoScout the Bewerbermappe PDF is attached to the message, so offering
     // to send it would be redundant. Kleinanzeigen keeps the offer.
     includeMappeLine: CHANNELS.immoscout.includeMappeLine,
+    interest,
   });
 
   return {

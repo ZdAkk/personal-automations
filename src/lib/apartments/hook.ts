@@ -71,7 +71,10 @@ const BANNED_HOOK =
 export async function personalizedHook(
   facts: HookFacts,
   fallback: string,
-  model?: string
+  model?: string,
+  /** Tone instruction from the interest tier, e.g. "sachlich und
+   *  zurueckhaltend" vs "warm und klar begeistert". */
+  toneHint?: string
 ): Promise<string> {
   const features = (facts.features ?? []).filter((f) => !HIDDEN_FEATURES.test(f));
   const userLines = [
@@ -95,7 +98,14 @@ export async function personalizedHook(
     for (let attempt = 0; attempt < 2; attempt++) {
       const out = await chat(
         [
-          { role: "system", content: HOOK_SYSTEM_PROMPT },
+          {
+            role: "system",
+            content: toneHint
+              ? `${HOOK_SYSTEM_PROMPT}
+
+Tonfall fuer diesen Satz: ${toneHint}.`
+              : HOOK_SYSTEM_PROMPT,
+          },
           { role: "user", content: userLines },
           ...(attempt === 0
             ? []

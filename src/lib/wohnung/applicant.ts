@@ -15,7 +15,9 @@
 import {
   APPLICANT,
   SITUATION,
+  ensureFreshProfile,
   incomeEur,
+  interestTier,
   reservesEurFmt,
 } from "../../config/profile";
 
@@ -90,6 +92,14 @@ function logisticsLine(): string {
   return parts.join(" ");
 }
 
+// Concessions that scale with how much you actually want THIS flat. Empty at
+// low interest, so a lukewarm enquiry doesn't promise things you'd rather not.
+function flexibilityLine(interest: number | undefined): string | null {
+  if (interest == null) return null;
+  const sentences = interestTier(interest).sentences;
+  return sentences.length > 0 ? sentences.join(" ") : null;
+}
+
 /**
  * Assemble the full, ready-to-send message from a personalised opening hook +
  * the chosen framing. Everything except `hook` is fixed, so the structure and
@@ -103,14 +113,24 @@ function logisticsLine(): string {
 export function assembleLetter(
   hook: string,
   framing: Framing,
-  opts: { salutation?: string; closing?: string; includeMappeLine?: boolean } = {}
+  opts: {
+    salutation?: string;
+    closing?: string;
+    includeMappeLine?: boolean;
+    /** 1..10. Higher adds the concessions configured for that tier, because a
+     *  genuinely keen applicant offers more than a lukewarm one. */
+    interest?: number;
+  } = {}
 ): string {
+  // Pick up any settings change (dashboard save, or a hand edit of the file).
+  ensureFreshProfile();
   return [
     opts.salutation ?? "Hallo,",
     hook.trim(),
     aboutParagraph(framing),
     securityBlock(),
     opts.includeMappeLine === false ? null : mappeLine(),
+    flexibilityLine(opts.interest),
     logisticsLine(),
     (opts.closing ?? "Viele Grüße") + "\n" + APPLICANT.fullName,
   ]

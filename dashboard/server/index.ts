@@ -20,10 +20,21 @@ import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 
-import { parseListingUrls } from "../../src/lib/apartments/url.js";
-import { draftListings, type DraftedListing } from "../../src/lib/apartments/draft-from-url.js";
-import { APPLICANT, SEARCH, OPERATIONS, radiusFor } from "../../src/config/profile.js";
-import type { DraftEvent, DraftResultDto, ProfileDto } from "../shared/api.js";
+import { parseListingUrls, parseListingUrl } from "../../src/lib/apartments/url";
+import {
+  draftListing,
+  draftListings,
+  type DraftedListing,
+} from "../../src/lib/apartments/draft-from-url";
+import {
+  SITUATION,
+  applyProfile,
+  profilePath,
+  profileValues,
+  reloadProfile,
+  type ProfileValues,
+} from "../../src/config/profile";
+import type { DraftEvent, DraftResultDto, ProfileMeta } from "../shared/api.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../..");
@@ -56,29 +67,41 @@ const app = Fastify({
 
 app.get("/health", async () => ({ ok: true, uptime: process.uptime() }));
 
-app.get("/api/profile", async (): Promise<ProfileDto> => {
-  const c = SEARCH.criteria;
-  return {
-    applicant: {
-      fullName: APPLICANT.fullName,
-      moveInDate: APPLICANT.moveInDate,
-      monthlyIncomeEur: APPLICANT.monthlyIncomeEur,
-      reservesEur: APPLICANT.reservesEur,
-      schufaDate: APPLICANT.schufaDate,
-      currentCity: APPLICANT.currentCity,
-    },
-    criteria: {
-      maxWarmmiete: c.maxWarmmiete ?? null,
-      minWohnflaeche: c.minWohnflaeche ?? null,
-      maxWohnflaeche: c.maxWohnflaeche ?? null,
-      minZimmer: c.minZimmer ?? null,
-    },
-    city: { name: SEARCH.city.name, radiusKm: radiusFor("immoscout") },
-    llmModel: process.env.WOHNUNG_LLM_MODEL ?? OPERATIONS.llmModel,
-  };
+app.get("/api/profile", async () => {
+  // Re-read from disk so an edit made outside the UI is picked up too.
+  await reloadProfile();
+  return profileValues();
 });
 
-function toDto(r: DraftedListing): DraftResultDto {
+app.get("/api/profile/meta", async (): Promise<ProfileMeta> => {
+  const p = profilePath();
+  if (!p) return { path: null, writable: false };
+  try {
+    await fs.promises.access(p, fs.constants.W_OK);
+    return { path: p, writable: true };
+  } catch {
+    return { path: p, writable: false };
+  }
+});
+
+app.put<{ Body: ProfileValues }>("/api/profile", async (req, reply) => {
+  const next = req.body;
+  if (!next?.applicant || !next?.situation || !next?.search) {
+    return reply.code(400).send({ error: "incomplete profile payload" });
+  }
+  const file = profilePath();
+  if (!file) return reply.code(500).send({ error: "profile.json path unavailable" });
+
+  // Write the same file the Trigger.dev pipelines read at build time, so the
+  // dashboard and the scouts cannot drift. Formatted for a readable git diff.
+  await fs.promises.writeFile(file, `${JSON.stringify(next, null, 2)}
+`, "utf8");
+  applyProfile(next);
+  req.log.info("profile saved");
+  return { ok: true, path: file };
+});
+
+function toDto(r: DraftedListing, interest: number): DraftResultDto {
   const i = r.item;
   return {
     source: r.source,
@@ -87,6 +110,7 @@ function toDto(r: DraftedListing): DraftResultDto {
     ok: r.ok,
     error: r.error,
     outsideCriteria: r.outsideCriteria,
+    interest,
     listing: i
       ? {
           title: i.title,
@@ -105,8 +129,9 @@ function toDto(r: DraftedListing): DraftResultDto {
   };
 }
 
-app.post<{ Body: { urls?: string } }>("/api/draft", async (req, reply) => {
+app.post<{ Body: { urls?: string; interest?: number } }>("/api/draft", async (req, reply) => {
   const { listings, rejected } = parseListingUrls(req.body?.urls ?? "");
+  const interest = clampInterest(req.body?.interest);
 
   // We drive the socket ourselves from here on; stop Fastify from also trying
   // to send a reply when this handler resolves.
@@ -151,9 +176,10 @@ app.post<{ Body: { urls?: string } }>("/api/draft", async (req, reply) => {
     if (listings.length > 0) {
       await draftListings(listings, {
         concurrency: 3,
+        interest,
         onDone: (r) => {
           if (r.ok) ok++;
-          send({ type: "item", index: index++, result: toDto(r) });
+          send({ type: "item", index: index++, result: toDto(r, interest) });
         },
       });
     }
@@ -165,6 +191,22 @@ app.post<{ Body: { urls?: string } }>("/api/draft", async (req, reply) => {
     clearInterval(heartbeat);
     if (!closed) reply.raw.end();
   }
+});
+
+function clampInterest(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return SITUATION.interest.default;
+  return Math.max(1, Math.min(10, Math.round(n)));
+}
+
+// Re-draft ONE listing, used when a card's interest slider moves. Cheap enough
+// to be synchronous: a single fetch plus one short LLM call.
+app.post<{ Body: { url?: string; interest?: number } }>("/api/draft-one", async (req, reply) => {
+  const parsed = parseListingUrl(req.body?.url ?? "");
+  if (!parsed) return reply.code(400).send({ error: "not a recognised listing URL" });
+  const interest = clampInterest(req.body?.interest);
+  const result = await draftListing(parsed, interest);
+  return toDto(result, interest);
 });
 
 // --- static UI --------------------------------------------------------------

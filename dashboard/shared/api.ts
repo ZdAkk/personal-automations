@@ -4,6 +4,10 @@
 // silently producing an undefined at runtime.
 // ============================================================================
 
+// Type-only: erased at build time, so the browser bundle never pulls in the
+// server-side config module (which touches node:fs).
+export type { ProfileValues } from "../../src/config/profile";
+
 export type ListingSource = "ImmoScout24" | "Kleinanzeigen";
 
 /** One drafted listing, as streamed to the browser. */
@@ -16,6 +20,8 @@ export interface DraftResultDto {
   /** Criteria the listing misses. Informational: it is still drafted, because
    *  pasting a URL is the decision. */
   outsideCriteria?: string[];
+  /** The interest score this draft was written at (1..10). */
+  interest: number;
   listing?: {
     title: string;
     imageUrl: string | null;
@@ -38,22 +44,21 @@ export type DraftEvent =
   | { type: "done"; total: number; ok: number }
   | { type: "error"; message: string };
 
-/** GET /api/profile — what the UI shows so you can sanity-check the letter. */
-export interface ProfileDto {
-  applicant: {
-    fullName: string;
-    moveInDate: string;
-    monthlyIncomeEur: number;
-    reservesEur: number;
-    schufaDate: string;
-    currentCity: string;
-  };
-  criteria: {
-    maxWarmmiete: number | null;
-    minWohnflaeche: number | null;
-    maxWohnflaeche: number | null;
-    minZimmer: number | null;
-  };
-  city: { name: string; radiusKm: number };
-  llmModel: string;
+export interface DraftRequest {
+  urls: string;
+  /** 1..10, applied to the whole batch. Cards can be re-drafted individually. */
+  interest?: number;
+}
+
+/** POST /api/draft-one — re-draft a single listing at a new interest score. */
+export interface DraftOneRequest {
+  url: string;
+  interest: number;
+}
+
+/** Where the settings file lives, shown in the UI so it's obvious what is edited. */
+export interface ProfileMeta {
+  path: string | null;
+  /** True when the running process can write the file (i.e. not bundled). */
+  writable: boolean;
 }

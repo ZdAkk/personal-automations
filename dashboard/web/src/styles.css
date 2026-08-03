@@ -141,3 +141,62 @@ body {
   font: inherit; font-size: 13.5px; line-height: 1.55;
   white-space: pre-wrap; word-wrap: break-word;
 }
+
+/* --- tabs --- */
+.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+.tab {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: 7px;
+}
+.tab--active { background: var(--accent); color: var(--accent-ink); }
+
+/* --- interest slider (composer + card) --- */
+.interest { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.interest__label { font-size: 13px; color: var(--text); min-width: 150px; }
+.interest__label em { color: var(--muted); font-style: normal; }
+.interest__range { flex: 1; min-width: 180px; accent-color: var(--accent); }
+.interest__hint { font-size: 12px; color: var(--muted); flex-basis: 100%; }
+
+.card__interest { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.card__interest input[type="range"] { flex: 1; accent-color: var(--accent); }
+.card__interestLabel { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.card__interestLabel strong { color: var(--text); }
+.card__interestLabel em { font-style: normal; }
+.spinner--sm { width: 12px; height: 12px; border-width: 2px; }
+
+/* --- settings --- */
+.settings { display: flex; flex-direction: column; gap: 16px; }
+.settings__bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px;
+}
+.settings__status { font-size: 13px; color: var(--muted); }
+.settings__path { margin-left: auto; font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.settings__note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+
+.settings__section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px 20px;
+}
+.settings__section h3 { margin: 0 0 12px; font-size: 15px; }
+
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field--wide { grid-column: 1 / -1; }
+.field__label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.field__input {
+  padding: 8px 10px; font: inherit; font-size: 14px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.field__input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field__input--area { resize: vertical; line-height: 1.5; }
+.field__hint { font-size: 11px; color: var(--muted); }
+
+.checks { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
+.check { display: flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.tier { border: 1px dashed var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }

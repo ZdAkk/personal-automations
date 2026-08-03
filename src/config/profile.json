@@ -1,0 +1,142 @@
+{
+  "applicant": {
+    "fullName": "Zaid Alakad",
+    "age": 25,
+    "phone": "0179 4895351",
+    "email": "zaid@alakad.de",
+    "currentCity": "Hannover",
+    "tenantSince": 2022,
+    "occupation": "selbstständiger Softwareentwickler",
+    "monthlyIncomeEur": 8700,
+    "reservesEur": 60000,
+    "schufaDate": "09.07.2026",
+    "paymentHistory": "07/2024 bis 07/2026",
+    "moveInDate": "01.10.2026",
+    "nonSmoker": true,
+    "hasPets": false,
+    "singleHousehold": true
+  },
+  "situation": {
+    "framingClause": {
+      "lmu": "beginne zum Wintersemester zusätzlich ein Masterstudium an der LMU München, meine freiberufliche Tätigkeit läuft parallel weiter",
+      "neutral": "verlege meinen Lebensmittelpunkt nach Bayern"
+    },
+    "longTermNote": "würde mich freuen, in meinem neuen Zuhause länger zu bleiben",
+    "viewing": {
+      "willTravel": true,
+      "leadTime": "etwa eine Woche Vorlauf",
+      "offerVideoCall": true
+    },
+    "mappeContents": "Mieterselbstauskunft, SCHUFA-Check, Einkommensnachweis und Zahlungsnachweise",
+    "interest": {
+      "default": 5,
+      "tiers": [
+        {
+          "from": 1,
+          "label": "verhalten",
+          "tone": "sachlich und zurückhaltend, ohne Begeisterung",
+          "sentences": []
+        },
+        {
+          "from": 4,
+          "label": "interessiert",
+          "tone": "freundlich und sachlich",
+          "sentences": []
+        },
+        {
+          "from": 7,
+          "label": "sehr interessiert",
+          "tone": "freundlich und deutlich interessiert",
+          "sentences": [
+            "Beim Einzugstermin bin ich flexibel und richte mich gerne nach Ihnen."
+          ]
+        },
+        {
+          "from": 9,
+          "label": "Wunschwohnung",
+          "tone": "warm und klar begeistert, aber sachlich und nicht anbiedernd",
+          "sentences": [
+            "Beim Einzugstermin bin ich flexibel und richte mich gerne nach Ihnen.",
+            "Eine längerfristige Mietdauer ist ausdrücklich in meinem Sinne.",
+            "Die Kaution kann ich sofort hinterlegen, und für eine Besichtigung mache ich mich kurzfristig frei."
+          ]
+        }
+      ]
+    }
+  },
+  "search": {
+    "city": {
+      "name": "München",
+      "lat": 48.1371,
+      "lon": 11.5754,
+      "zip": "80331"
+    },
+    "radiusKm": 65,
+    "criteria": {
+      "maxWarmmiete": 1000,
+      "minWohnflaeche": 35,
+      "maxWohnflaeche": null,
+      "minZimmer": 1.5,
+      "maxZimmer": null,
+      "maxKaution": null,
+      "excludeWBS": true,
+      "excludeTausch": true,
+      "excludeMoebliert": false
+    },
+    "framing": {
+      "lmuMaxKm": 45,
+      "warnMaxKm": 50
+    }
+  },
+  "sources": {
+    "immoscout": {
+      "enabled": true,
+      "radiusKm": 55,
+      "maxPages": 3,
+      "pageSize": 25,
+      "excludeKeywords": [
+        "wohnberechtigungsschein",
+        "wbs ",
+        "wohngemeinschaft",
+        "wg zimmer",
+        "wg-zimmer",
+        "zwischenmiete",
+        "untermiete"
+      ]
+    },
+    "kleinanzeigen": {
+      "enabled": true,
+      "radiusKm": null,
+      "maxPages": 1,
+      "pageSize": 25,
+      "excludeKeywords": [
+        "wohnberechtigungsschein",
+        "zwischenmiete",
+        "zwischenmieter",
+        "untermiete",
+        "wohngemeinschaft"
+      ]
+    }
+  },
+  "channels": {
+    "immoscout": {
+      "salutation": "",
+      "closing": "Mit freundlichen Grüßen",
+      "includeMappeLine": false
+    },
+    "kleinanzeigen": {
+      "salutation": "Hallo,",
+      "closing": "Viele Grüße",
+      "includeMappeLine": true
+    }
+  },
+  "operations": {
+    "cron": {
+      "immoscout": "*/15 * * * *",
+      "kleinanzeigen": "*/15 * * * *"
+    },
+    "concurrency": 4,
+    "seenTtl": "30d",
+    "llmModel": "anthropic/claude-sonnet-4"
+  }
+}

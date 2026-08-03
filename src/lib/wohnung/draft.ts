@@ -8,6 +8,7 @@
 import { featureList, type KleinanzeigenDetail } from "../adapters/kleinanzeigen";
 import { kaltmiete, warmmiete, wohnflaeche, zimmer } from "./filter";
 import { assembleLetter, fallbackHook, type Framing } from "./applicant";
+import { interestTier } from "../../config/profile";
 import { personalizedHook } from "../apartments/hook";
 
 export interface FramingRules {
@@ -31,8 +32,11 @@ export async function draftFromDetail(
   d: KleinanzeigenDetail,
   distanceKm: number | null,
   rules: FramingRules,
-  model?: string
+  /** `interest` (1..10) shapes the hook's tone and adds flexibility sentences. */
+  opts: { model?: string; interest?: number } = {}
 ): Promise<DraftResult> {
+  const { model, interest } = opts;
+  const tier = interestTier(interest);
   const stadtteil = d.location?.city?.trim() || null;
 
   // Framing: LMU only when we can confirm the place is genuinely close — the
@@ -55,9 +59,10 @@ export async function draftFromDetail(
       description: d.description,
     },
     fallbackHook(stadtteil),
-    model
+    model,
+    tier.tone
   );
-  const body = assembleLetter(hook, framing);
+  const body = assembleLetter(hook, framing, { interest });
 
   return {
     body,
