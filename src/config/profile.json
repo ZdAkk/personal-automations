@@ -71,7 +71,7 @@
       "lon": 11.5754,
       "zip": "80331"
     },
-    "radiusKm": 50,
+    "radiusKm": 55,
     "criteria": {
       "maxWarmmiete": 1000,
       "minWohnflaeche": 35,
