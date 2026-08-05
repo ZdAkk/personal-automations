@@ -12,9 +12,10 @@
   },
   "scripts": {
     "draft": "tsx src/cli/draft.ts",
-    "deploy": "trigger.dev deploy --profile az",
+    "deploy": "trigger deploy --profile az",
     "dashboard": "npm run start -w wohnung-dashboard",
-    "dashboard:dev": "npm run dev -w wohnung-dashboard"
+    "dashboard:dev": "npm run dev -w wohnung-dashboard",
+    "deploy:dry": "trigger deploy --dry-run --profile az"
   },
   "name": "personal-automations",
   "private": true,
