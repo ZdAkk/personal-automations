@@ -71,7 +71,7 @@
       "lon": 11.5754,
       "zip": "80331"
     },
-    "radiusKm": 65,
+    "radiusKm": 50,
     "criteria": {
       "maxWarmmiete": 1000,
       "minWohnflaeche": 35,
@@ -91,7 +91,7 @@
   "sources": {
     "immoscout": {
       "enabled": true,
-      "radiusKm": 55,
+      "radiusKm": null,
       "maxPages": 3,
       "pageSize": 25,
       "excludeKeywords": [
